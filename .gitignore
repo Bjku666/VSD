@@ -1,0 +1,72 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Logs and runtime files
+*.log
+
+# Training / experiment artifacts
+data/**/*
+!data/**/
+!data/**/.gitkeep
+
+prepared/**/*
+!prepared/**/
+!prepared/**/.gitkeep
+
+experiments/**/*
+!experiments/**/
+!experiments/**/.gitkeep
+
+logs/**/*
+!logs/**/
+!logs/**/.gitkeep
+
+results/test/**/*
+!results/test/**/
+!results/test/**/.gitkeep
+
+results/val/**/*
+!results/val/**/
+!results/val/**/.gitkeep
+
+runs/**/*
+!runs/**/
+!runs/**/.gitkeep
+
+# Keep documentation in results
+!results/README.md
+
+# Weights / checkpoints
+*.pt
+*.onnx
+*.engine
+*.tflite
+
+weights/**/*
+!weights/**/
+!weights/**/.gitkeep
+!weights/pretrained/
+!weights/pretrained/**
+
+# Local caches and temporary files
+*.tmp
+*.temp
+*.bak
