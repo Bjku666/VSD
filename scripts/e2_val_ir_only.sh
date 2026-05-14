@@ -1,7 +1,7 @@
 #!/bin/bash
 # 评估 YOLO11n IR-only baseline，并导出 val/test 的标准与自定义指标。
 # 用法：
-#   ./scripts/e2_val_ir_only.sh [split] [model] [out_dir] [device] [case_topk] [case_max_images] [ultra_project] [skip_case_viz] [case_device] [case_batch]
+#   ./scripts/e2_val_ir_only.sh [split] [model] [out_dir] [device] [case_topk] [case_max_images] [ultra_project] [skip_case_viz] [case_device] [case_batch] [imgsz]
 set -euo pipefail
 
 source ~/miniconda3/etc/profile.d/conda.sh
@@ -18,6 +18,7 @@ ULTRA_PROJECT="${7:-${OUT_DIR}/ultralytics_val}"
 SKIP_CASE_VIZ="${8:-0}"
 CASE_DEVICE="${9:-}"
 CASE_BATCH="${10:-1}"
+IMGSZ="${11:-640}"
 
 # 降低 CUDA 内存碎片风险。
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
@@ -26,7 +27,7 @@ CMD=(
     /mnt/disk2/lhr/conda_envs/vsd/bin/python /mnt/disk2/lhr/VSD/scripts/e2_val_ir_only.py
     --model "$MODEL_PATH"
     --split "$SPLIT"
-    --imgsz 640
+    --imgsz "$IMGSZ"
     --device "$DEVICE"
     --case-topk "$CASE_TOPK"
     --case-max-images "$CASE_MAX_IMAGES"

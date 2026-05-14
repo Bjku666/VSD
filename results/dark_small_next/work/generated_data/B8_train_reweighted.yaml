@@ -1,0 +1,17 @@
+path: /
+train: /mnt/disk2/lhr/VSD/results/dark_small_next/work/generated_data/B8_train_reweighted.train.txt
+val: images/val
+test: images/test
+names:
+  0: car
+  1: truck
+  2: bus
+  3: van
+  4: freight_car
+reweight_source:
+  base_yaml: /mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/dronevehicle_resplit_ir.yaml
+  subset_yaml: /mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/subsets/ir_dark-small.yaml
+  multiplier: 3
+  base_train_images: 17990
+  boosted_images: 485
+  weighted_train_entries: 18960
