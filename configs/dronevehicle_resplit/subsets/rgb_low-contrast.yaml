@@ -1,4 +1,4 @@
-path: /mnt/disk2/lhr/VSD/prepared/dronevehicle_resplit/resplit_subsets/rgb/dark
+path: /mnt/disk2/lhr/VSD/prepared/dronevehicle_resplit/resplit_subsets/rgb/low-contrast
 train: images/train
 val: images/val
 test: images/test

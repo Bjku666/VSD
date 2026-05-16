@@ -1,217 +1,109 @@
-name: dark_small_next
-description: 面向 DroneVehicle 暗弱小目标的下一批大规模实验。
+protocol:
+  name: DroneVehicle-DarkSmall-v1
+  threshold_source: train_only
+  allow_test_tuning: false
+  crop_border_px: 100
+  first_round_limit:
+    - E0
+    - E1
+    - E2
+    - E3
+    - E4
 
-defaults:
+global:
   root: /mnt/disk2/lhr/VSD
-  python: /mnt/disk2/lhr/conda_envs/vsd/bin/python
-  yolo_model: /mnt/disk2/lhr/VSD/weights/pretrained/yolo11n.pt
+  output_root: /mnt/disk2/lhr/VSD/results/val
+  audit_root: /mnt/disk2/lhr/VSD/results/dataset_audit
   device: "0"
-  workers: 16
-  epochs: 100
   seed: 0
-  split: val
-  results_root: /mnt/disk2/lhr/VSD/results/dark_small_next
-  batch_single:
-    "640": 96
-    "768": 48
-    "960": 32
-    "1024": 16
-  batch_fusion:
-    "640": 64
-    "768": 32
-  case:
-    topk: 20
-    max_images: 0
-    batch: 1
-    skip_viz: true
-
-data:
-  rgb: /mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/dronevehicle_resplit_rgb.yaml
-  ir: /mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/dronevehicle_resplit_ir.yaml
-  rgb_ir: /mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/dronevehicle_resplit_rgb_ir.yaml
-  subsets:
-    rgb_small: /mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/subsets/rgb_small.yaml
-    rgb_dark: /mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/subsets/rgb_dark.yaml
-    rgb_dark_small: /mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/subsets/rgb_dark-small.yaml
-    ir_small: /mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/subsets/ir_small.yaml
-    ir_dark: /mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/subsets/ir_dark.yaml
-    ir_dark_small: /mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/subsets/ir_dark-small.yaml
-
-baseline_results:
-  - id: E1
-    name: E1 RGB-only
-    metrics: /mnt/disk2/lhr/VSD/results/val/e1_rgb_only_val/required_metrics.json
-  - id: E2
-    name: E2 IR-only
-    metrics: /mnt/disk2/lhr/VSD/results/val/e2_ir_only_val/required_metrics.json
-  - id: E3
-    name: E3 Late NMS
-    metrics: /mnt/disk2/lhr/VSD/results/val/e3_late_fusion_nms_val/required_metrics.json
-  - id: E4
-    name: E4 Late WBF
-    metrics: /mnt/disk2/lhr/VSD/results/val/e4_late_fusion_wbf_val/required_metrics.json
-  - id: E5
-    name: E5 single-layer fusion
-    metrics: /mnt/disk2/lhr/VSD/results/val/e5_feature_fusion_single_val/required_metrics.json
-  - id: E6
-    name: E6 multi-scale fusion
-    metrics: /mnt/disk2/lhr/VSD/results/val/e6_feature_fusion_multiscale_val/required_metrics.json
+  imgsz: 640
+  epochs: 100
+  batch: 96
+  workers: 16
+  pretrained: /mnt/disk2/lhr/VSD/weights/pretrained/yolo11n.pt
 
 experiments:
-  - id: B1
-    stage: batch1
-    title: IR-only 768
-    kind: single
-    modality: ir
-    imgsz: 768
-    close_mosaic: 10
-    project: /mnt/disk2/lhr/VSD/results/dark_small_next/runs/e2_ir_only
-    name: b1_yolo11n_ir_only_768
-    result_dir: /mnt/disk2/lhr/VSD/results/dark_small_next/val/B1_ir_only_768
+  - id: E0
+    name: protocol_audit_and_build
+    type: dataset_protocol
+    status: todo
+    command: >
+      /mnt/disk2/lhr/conda_envs/vsd/bin/python /mnt/disk2/lhr/VSD/scripts/dataset_resplit_dronevehicle.py all
+      --raw-root /mnt/disk2/lhr/VSD/data/DroneVehicle/raw
+      --prepared-root /mnt/disk2/lhr/VSD/prepared/dronevehicle_resplit
+      --config-root /mnt/disk2/lhr/VSD/configs/dronevehicle_resplit
+      --report-root /mnt/disk2/lhr/VSD/results/dataset_audit
+    outputs:
+      - /mnt/disk2/lhr/VSD/results/dataset_audit/pair_audit.json
+      - /mnt/disk2/lhr/VSD/results/dataset_audit/train_thresholds.json
+      - /mnt/disk2/lhr/VSD/results/dataset_audit/subset_counts.csv
+      - /mnt/disk2/lhr/VSD/results/dataset_audit/protocol_summary.md
+    acceptance:
+      - train/val/test 主划分不变
+      - 阈值只来自 train
+      - RGB/IR/RGB-IR yaml 已生成
+      - E0 不通过不进入 E1-E4
 
-  - id: B2
-    stage: batch1
-    title: IR-only 960
-    kind: single
-    modality: ir
-    imgsz: 960
-    close_mosaic: 10
-    project: /mnt/disk2/lhr/VSD/results/dark_small_next/runs/e2_ir_only
-    name: b2_yolo11n_ir_only_960
-    result_dir: /mnt/disk2/lhr/VSD/results/dark_small_next/val/B2_ir_only_960
+  - id: E1
+    name: rgb_only_baseline
+    type: train_val
+    status: blocked
+    depends_on:
+      - E0
+    command: >
+      /bin/bash /mnt/disk2/lhr/VSD/scripts/train/e1_train_rgb_only.sh 0 32 e1_yolo11n_rgb_only_640_ddp 16 bg
+    outputs:
+      - /mnt/disk2/lhr/VSD/results/val/e1_yolo11n_rgb_only_640_ddp/weights/best.pt
+      - /mnt/disk2/lhr/VSD/results/val/e1_yolo11n_rgb_only_640_ddp/weights/last.pt
+      - /mnt/disk2/lhr/VSD/results/val/e1_yolo11n_rgb_only_640_ddp/required_metrics.json
+    acceptance:
+      - best.pt 存在
+      - required_metrics.json 存在
+      - 完成 val 评估
 
-  - id: B3
-    stage: batch1
-    title: RGB-only 768
-    kind: single
-    modality: rgb
-    imgsz: 768
-    close_mosaic: 10
-    project: /mnt/disk2/lhr/VSD/results/dark_small_next/runs/e1_rgb_only
-    name: b3_yolo11n_rgb_only_768
-    result_dir: /mnt/disk2/lhr/VSD/results/dark_small_next/val/B3_rgb_only_768
+  - id: E2
+    name: ir_only_baseline
+    type: train_val
+    status: blocked
+    depends_on:
+      - E0
+    command: >
+      /bin/bash /mnt/disk2/lhr/VSD/scripts/train/e2_train_ir_only.sh 0 32 e2_yolo11n_ir_only_640_ddp 16 bg
+    outputs:
+      - /mnt/disk2/lhr/VSD/results/val/e2_yolo11n_ir_only_640_ddp/weights/best.pt
+      - /mnt/disk2/lhr/VSD/results/val/e2_yolo11n_ir_only_640_ddp/weights/last.pt
+      - /mnt/disk2/lhr/VSD/results/val/e2_yolo11n_ir_only_640_ddp/required_metrics.json
+    acceptance:
+      - best.pt 存在
+      - required_metrics.json 存在
+      - 完成 val 评估
 
-  - id: B4
-    stage: batch1
-    title: WBF RGB:IR = 0.4:0.6
-    kind: late_fusion
-    method: late_wbf
-    imgsz: 640
-    wbf_weight_rgb: 0.4
-    wbf_weight_ir: 0.6
-    rgb_model: /mnt/disk2/lhr/VSD/experiments/e1_rgb_only/e1_yolo11n_rgb_only_640_ddp_restart/weights/best.pt
-    ir_model: /mnt/disk2/lhr/VSD/experiments/e2_ir_only/e2_yolo11n_ir_only_640_ddp_restart/weights/best.pt
-    result_dir: /mnt/disk2/lhr/VSD/results/dark_small_next/val/B4_wbf_rgb04_ir06
+  - id: E3
+    name: late_fusion_nms
+    type: fusion_val
+    status: blocked
+    depends_on:
+      - E1
+      - E2
+    command: >
+      /bin/bash /mnt/disk2/lhr/VSD/scripts/train/e3_val_late_fusion_nms.sh val /mnt/disk2/lhr/VSD/results/val/e1_yolo11n_rgb_only_640_ddp/weights/best.pt /mnt/disk2/lhr/VSD/results/val/e2_yolo11n_ir_only_640_ddp/weights/best.pt /mnt/disk2/lhr/VSD/results/val/e3_late_fusion_nms_val 0
+    outputs:
+      - /mnt/disk2/lhr/VSD/results/val/e3_late_fusion_nms_val/required_metrics.json
+    acceptance:
+      - 使用 E1 / E2 新权重
+      - 只在 val 上评估
 
-  - id: B5
-    stage: batch1
-    title: WBF RGB:IR = 0.3:0.7
-    kind: late_fusion
-    method: late_wbf
-    imgsz: 640
-    wbf_weight_rgb: 0.3
-    wbf_weight_ir: 0.7
-    rgb_model: /mnt/disk2/lhr/VSD/experiments/e1_rgb_only/e1_yolo11n_rgb_only_640_ddp_restart/weights/best.pt
-    ir_model: /mnt/disk2/lhr/VSD/experiments/e2_ir_only/e2_yolo11n_ir_only_640_ddp_restart/weights/best.pt
-    result_dir: /mnt/disk2/lhr/VSD/results/dark_small_next/val/B5_wbf_rgb03_ir07
-
-  - id: B6
-    stage: batch1
-    title: WBF RGB:IR = 0.5:0.5
-    kind: late_fusion
-    method: late_wbf
-    imgsz: 640
-    wbf_weight_rgb: 0.5
-    wbf_weight_ir: 0.5
-    rgb_model: /mnt/disk2/lhr/VSD/experiments/e1_rgb_only/e1_yolo11n_rgb_only_640_ddp_restart/weights/best.pt
-    ir_model: /mnt/disk2/lhr/VSD/experiments/e2_ir_only/e2_yolo11n_ir_only_640_ddp_restart/weights/best.pt
-    result_dir: /mnt/disk2/lhr/VSD/results/dark_small_next/val/B6_wbf_rgb05_ir05
-
-  - id: B7
-    stage: batch1
-    title: IR-only 768 + close_mosaic=20
-    kind: single
-    modality: ir
-    imgsz: 768
-    close_mosaic: 20
-    project: /mnt/disk2/lhr/VSD/results/dark_small_next/runs/e2_ir_only
-    name: b7_yolo11n_ir_only_768_close20
-    result_dir: /mnt/disk2/lhr/VSD/results/dark_small_next/val/B7_ir_only_768_close20
-
-  - id: B8
-    stage: batch1
-    title: IR-only 768 + dark-small resampling
-    kind: single
-    modality: ir
-    imgsz: 768
-    close_mosaic: 10
-    train_reweight:
-      subset: /mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/subsets/ir_dark-small.yaml
-      multiplier: 3
-    project: /mnt/disk2/lhr/VSD/results/dark_small_next/runs/e2_ir_only
-    name: b8_yolo11n_ir_only_768_darksmall_x3
-    result_dir: /mnt/disk2/lhr/VSD/results/dark_small_next/val/B8_ir_only_768_darksmall_x3
-
-  - id: F1
-    stage: batch2
-    title: 6-channel early fusion 640
-    kind: planned
-    status: requires_model_support
-    note: 需要先实现 6 通道 YOLO 输入适配器后才能启动。
-
-  - id: F2
-    stage: batch2
-    title: 6-channel early fusion 768
-    kind: planned
-    status: requires_model_support
-    note: 需要先实现 6 通道 YOLO 输入适配器后才能启动。
-
-  - id: F3
-    stage: batch2
-    title: E5 fixed 768
-    kind: e5
-    mode: rgb_ir
-    imgsz: 768
-    close_mosaic: 10
-    project: /mnt/disk2/lhr/VSD/results/dark_small_next/runs/e5_feature_fusion_single
-    name: f3_yolo11n_e5_rgb_ir_768_fixed
-    result_dir: /mnt/disk2/lhr/VSD/results/dark_small_next/val/F3_e5_rgb_ir_768_fixed
-
-  - id: F4
-    stage: batch2
-    title: E6 fixed 768
-    kind: e6
-    mode: rgb_ir
-    imgsz: 768
-    close_mosaic: 10
-    project: /mnt/disk2/lhr/VSD/results/dark_small_next/runs/e6_feature_fusion_multiscale
-    name: f4_yolo11n_e6_rgb_ir_768_fixed
-    result_dir: /mnt/disk2/lhr/VSD/results/dark_small_next/val/F4_e6_rgb_ir_768_fixed
-
-  - id: F5
-    stage: batch2
-    title: E6 fixed 768 + small resampling
-    kind: e6
-    mode: rgb_ir
-    imgsz: 768
-    close_mosaic: 10
-    train_reweight:
-      subset: /mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/subsets/rgb_small.yaml
-      multiplier: 2
-    project: /mnt/disk2/lhr/VSD/results/dark_small_next/runs/e6_feature_fusion_multiscale
-    name: f5_yolo11n_e6_rgb_ir_768_small_x2
-    result_dir: /mnt/disk2/lhr/VSD/results/dark_small_next/val/F5_e6_rgb_ir_768_small_x2
-
-  - id: F6
-    stage: batch2
-    title: E6 fixed 768 + dark-small resampling
-    kind: e6
-    mode: rgb_ir
-    imgsz: 768
-    close_mosaic: 10
-    train_reweight:
-      subset: /mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/subsets/rgb_dark-small.yaml
-      multiplier: 3
-    project: /mnt/disk2/lhr/VSD/results/dark_small_next/runs/e6_feature_fusion_multiscale
-    name: f6_yolo11n_e6_rgb_ir_768_darksmall_x3
-    result_dir: /mnt/disk2/lhr/VSD/results/dark_small_next/val/F6_e6_rgb_ir_768_darksmall_x3
+  - id: E4
+    name: late_fusion_wbf
+    type: fusion_val
+    status: blocked
+    depends_on:
+      - E1
+      - E2
+    command: >
+      /bin/bash /mnt/disk2/lhr/VSD/scripts/train/e4_val_late_fusion_wbf.sh val /mnt/disk2/lhr/VSD/results/val/e1_yolo11n_rgb_only_640_ddp/weights/best.pt /mnt/disk2/lhr/VSD/results/val/e2_yolo11n_ir_only_640_ddp/weights/best.pt /mnt/disk2/lhr/VSD/results/val/e4_late_fusion_wbf_val 0
+    outputs:
+      - /mnt/disk2/lhr/VSD/results/val/e4_late_fusion_wbf_val/required_metrics.json
+    acceptance:
+      - 使用 E1 / E2 新权重
+      - 只在 val 上评估

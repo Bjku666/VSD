@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import re
 import shlex
 import subprocess
 import sys
@@ -20,7 +21,7 @@ from typing import Any, Iterable
 import yaml
 
 
-DEFAULT_MANIFEST = Path("/mnt/disk2/lhr/VSD/configs/experiments/dark_small_next.yaml")
+DEFAULT_MANIFEST = Path("/mnt/disk2/lhr/VSD/configs/experiments/dark_small.yaml")
 
 
 @dataclass(frozen=True)
@@ -149,7 +150,7 @@ def _single_steps(manifest: dict[str, Any], exp: dict[str, Any], work_dir: Path)
     val_script = "e1_val_rgb_only.py" if exp["modality"] == "rgb" else "e2_val_ir_only.py"
 
     train = [
-        "yolo",
+        str(Path(defaults["python"]).with_name("yolo")),
         "detect",
         "train",
         f"model={defaults['yolo_model']}",
@@ -367,6 +368,13 @@ def _rank_tuple(row: dict[str, Any]) -> tuple[float, float, float, float]:
     return (ap_dark_small, recall_small, fp_score, map95)
 
 
+def _experiment_order_tuple(row: dict[str, Any]) -> tuple[int, ...]:
+    """按实验编号自然排序：E1, E2, E7_1, E7_2, E8_1。"""
+    exp_id = str(row.get("id", ""))
+    nums = [int(x) for x in re.findall(r"\d+", exp_id)]
+    return tuple(nums) if nums else (10_000,)
+
+
 def _collect_rows(manifest: dict[str, Any], include_baselines: bool = True) -> list[dict[str, Any]]:
     sources: list[dict[str, Any]] = []
     if include_baselines:
@@ -405,7 +413,7 @@ def _collect_rows(manifest: dict[str, Any], include_baselines: bool = True) -> l
                     row[f"{cls_name}_AP50"] = _metric_value(values, "AP50")
         rows.append(row)
 
-    rows.sort(key=_rank_tuple, reverse=True)
+    rows.sort(key=_experiment_order_tuple)
     return rows
 
 
@@ -433,7 +441,7 @@ def _format_float(value: Any) -> str:
 
 def _write_md(path: Path, rows: list[dict[str, Any]]) -> None:
     headers = [
-        "排名",
+        "序号",
         "ID",
         "实验",
         "状态",
@@ -447,9 +455,9 @@ def _write_md(path: Path, rows: list[dict[str, Any]]) -> None:
         "FP/image",
     ]
     lines = [
-        "# 暗弱小目标实验排行榜",
+        "# 暗弱小目标实验汇总表",
         "",
-        "排序规则：优先比较 AP_dark-small，其次 Recall_small，再比较更低 FP/image，最后比较 mAP50-95。",
+        "表格按实验编号顺序排列，便于对应完整实验流程；指标比较时仍优先关注 AP_dark-small、Recall_small、FP/image 和 mAP50-95。",
         "",
         "| " + " | ".join(headers) + " |",
         "| " + " | ".join(["---"] * len(headers)) + " |",
@@ -527,11 +535,11 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     p_run.add_argument("--stage", default=None)
     p_run.add_argument("--dry-run", action="store_true")
     p_run.add_argument("--only", nargs="*", choices=["train", "validate", "fusion_validate"])
-    p_run.add_argument("--work-dir", default="/mnt/disk2/lhr/VSD/results/dark_small_next/work")
+    p_run.add_argument("--work-dir", default="/mnt/disk2/lhr/VSD/results/val/work")
     p_run.set_defaults(func=cmd_run)
 
     p_ag = sub.add_parser("aggregate", help="汇总已有指标并写出排行榜。")
-    p_ag.add_argument("--out-dir", default="/mnt/disk2/lhr/VSD/results/dark_small_next")
+    p_ag.add_argument("--out-dir", default="/mnt/disk2/lhr/VSD/results/val")
     p_ag.add_argument("--no-baselines", action="store_true")
     p_ag.set_defaults(func=cmd_aggregate)
 

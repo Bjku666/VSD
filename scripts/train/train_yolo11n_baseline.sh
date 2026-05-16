@@ -11,5 +11,5 @@ yolo detect train \
     batch=16 \
     device=1 \
     workers=8 \
-    project=/mnt/disk2/lhr/VSD/experiments/visdrone \
+    project=/mnt/disk2/lhr/VSD/results/val \
     name=yolo11n_baseline

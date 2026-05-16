@@ -447,12 +447,12 @@ def main() -> None:
     parser.add_argument(
         "--rgb-model",
         type=str,
-        default="/mnt/disk2/lhr/VSD/experiments/e1_rgb_only/e1_yolo11n_rgb_only_640_ddp_restart/weights/best.pt",
+        default="/mnt/disk2/lhr/VSD/results/val/e1_yolo11n_rgb_only_640_ddp/weights/best.pt",
     )
     parser.add_argument(
         "--ir-model",
         type=str,
-        default="/mnt/disk2/lhr/VSD/experiments/e2_ir_only/e2_yolo11n_ir_only_640_ddp_restart/weights/best.pt",
+        default="/mnt/disk2/lhr/VSD/results/val/e2_yolo11n_ir_only_640_ddp/weights/best.pt",
     )
     parser.add_argument(
         "--rgb-data",

@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import os
 import shutil
@@ -18,7 +19,7 @@ import xml.etree.ElementTree as ET
 
 import matplotlib
 import numpy as np
-from PIL import Image, ImageStat
+from PIL import Image
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -58,6 +59,8 @@ CLASS_ALIASES: Dict[str, Optional[str]] = {
 }
 
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}
+CROP_BORDER_PX = 100
+CONTRAST_RING_SCALE = 1.6
 
 
 def normalize_class_name(raw: str) -> Optional[str]:
@@ -264,16 +267,161 @@ def write_text(path: Path, text: str) -> None:
         f.write(text)
 
 
-def safe_link_or_copy(src: Path, dst: Path, mode: str) -> None:
+def write_csv_rows(path: Path, fieldnames: List[str], rows: List[Dict[str, object]]) -> None:
+    ensure_dir(path.parent)
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def safe_link_or_copy(src: Path, dst: Path, mode: str, overwrite: bool = False) -> None:
     ensure_dir(dst.parent)
     if dst.exists() or dst.is_symlink():
-        return
+        if not overwrite:
+            return
+        if dst.is_dir() and not dst.is_symlink():
+            shutil.rmtree(dst)
+        else:
+            dst.unlink()
     if mode == "symlink":
         dst.symlink_to(src.resolve())
     elif mode == "hardlink":
         os.link(src, dst)
     else:
         shutil.copy2(src, dst)
+
+
+def save_cropped_image(src: Path, dst: Path, crop_border: int, overwrite: bool = True) -> Tuple[int, int]:
+    ensure_dir(dst.parent)
+    if dst.exists() or dst.is_symlink():
+        if overwrite:
+            if dst.is_dir() and not dst.is_symlink():
+                shutil.rmtree(dst)
+            else:
+                dst.unlink()
+        else:
+            with Image.open(dst) as existing:
+                return existing.size
+
+    with Image.open(src) as img:
+        width, height = img.size
+        if crop_border < 0:
+            raise ValueError("crop_border must be non-negative")
+        if crop_border == 0:
+            cropped = img.copy()
+        else:
+            if width <= crop_border * 2 or height <= crop_border * 2:
+                raise ValueError(f"Image too small for crop_border={crop_border}: {src}")
+            cropped = img.crop((crop_border, crop_border, width - crop_border, height - crop_border))
+        cropped.save(dst)
+        return cropped.size
+
+
+def crop_bbox_to_image(
+    bbox: Tuple[float, float, float, float],
+    width: int,
+    height: int,
+    crop_border: int,
+) -> Optional[Tuple[float, float, float, float]]:
+    x1, y1, x2, y2 = bbox
+    if crop_border:
+        x1 -= crop_border
+        y1 -= crop_border
+        x2 -= crop_border
+        y2 -= crop_border
+        width -= crop_border * 2
+        height -= crop_border * 2
+        if width <= 0 or height <= 0:
+            return None
+    return clamp_bbox((x1, y1, x2, y2), width, height)
+
+
+def compute_box_contrast(
+    gray_image: np.ndarray,
+    bbox: Tuple[float, float, float, float],
+    ring_scale: float = CONTRAST_RING_SCALE,
+) -> Optional[float]:
+    height, width = gray_image.shape[:2]
+    x1, y1, x2, y2 = bbox
+
+    x1_i = int(max(0, min(width - 1, np.floor(x1))))
+    y1_i = int(max(0, min(height - 1, np.floor(y1))))
+    x2_i = int(max(x1_i + 1, min(width, np.ceil(x2))))
+    y2_i = int(max(y1_i + 1, min(height, np.ceil(y2))))
+
+    inner = gray_image[y1_i:y2_i, x1_i:x2_i]
+    if inner.size == 0:
+        return None
+
+    box_w = max(1, x2_i - x1_i)
+    box_h = max(1, y2_i - y1_i)
+    exp_w = max(box_w + 2, int(round(box_w * ring_scale)))
+    exp_h = max(box_h + 2, int(round(box_h * ring_scale)))
+    cx = (x1_i + x2_i) / 2.0
+    cy = (y1_i + y2_i) / 2.0
+    ex1 = int(max(0, round(cx - exp_w / 2.0)))
+    ey1 = int(max(0, round(cy - exp_h / 2.0)))
+    ex2 = int(min(width, round(cx + exp_w / 2.0)))
+    ey2 = int(min(height, round(cy + exp_h / 2.0)))
+
+    if ex2 <= ex1 or ey2 <= ey1:
+        return None
+
+    expanded = gray_image[ey1:ey2, ex1:ex2]
+    if expanded.size == 0:
+        return None
+
+    mask = np.ones(expanded.shape[:2], dtype=bool)
+    inner_rel_x1 = int(max(0, min(expanded.shape[1], x1_i - ex1)))
+    inner_rel_y1 = int(max(0, min(expanded.shape[0], y1_i - ey1)))
+    inner_rel_x2 = int(max(inner_rel_x1 + 1, min(expanded.shape[1], x2_i - ex1)))
+    inner_rel_y2 = int(max(inner_rel_y1 + 1, min(expanded.shape[0], y2_i - ey1)))
+    mask[inner_rel_y1:inner_rel_y2, inner_rel_x1:inner_rel_x2] = False
+
+    ring_pixels = expanded[mask]
+    if ring_pixels.size == 0:
+        return None
+
+    inner_mean = float(np.mean(inner))
+    ring_mean = float(np.mean(ring_pixels))
+    return abs(inner_mean - ring_mean) / (ring_mean + 1e-6)
+
+
+def analyze_image_record(
+    img_path: Path,
+    label_records: List[Tuple[int, float, float, float, float]],
+    contrast_ring_scale: float = CONTRAST_RING_SCALE,
+) -> Dict[str, object]:
+    with Image.open(img_path) as img:
+        gray = np.asarray(img.convert("L"), dtype=np.float32)
+        width, height = img.size
+
+    brightness = float(np.mean(gray)) if gray.size else 0.0
+    areas: List[float] = []
+    contrasts: List[float] = []
+    for _cls_id, xc, yc, bw, bh in label_records:
+        x1 = (xc - bw / 2.0) * width
+        y1 = (yc - bh / 2.0) * height
+        x2 = (xc + bw / 2.0) * width
+        y2 = (yc + bh / 2.0) * height
+        areas.append(max(0.0, (x2 - x1) * (y2 - y1)))
+        contrast = compute_box_contrast(gray, (x1, y1, x2, y2), ring_scale=contrast_ring_scale)
+        if contrast is not None:
+            contrasts.append(float(contrast))
+
+    return {
+        "brightness": brightness,
+        "width": width,
+        "height": height,
+        "object_count": len(label_records),
+        "min_area": float(min(areas)) if areas else 0.0,
+        "mean_area": float(np.mean(areas)) if areas else 0.0,
+        "min_contrast": float(min(contrasts)) if contrasts else 0.0,
+        "mean_contrast": float(np.mean(contrasts)) if contrasts else 0.0,
+        "area_values": areas,
+        "contrast_values": contrasts,
+    }
 
 
 def yolo_line_from_bbox(
@@ -397,7 +545,7 @@ def render_report_figures(
     bucket_values = [int(val_bucket_counts.get(k, 0)) for k in bucket_labels]
     plt.figure(figsize=(6, 4))
     plt.bar(bucket_labels, bucket_values)
-    plt.title("Validation Brightness Buckets")
+    plt.title("Train Brightness Buckets")
     plt.ylabel("Image Count")
     plt.tight_layout()
     path = fig_dir / "val_brightness_buckets.png"
@@ -409,7 +557,7 @@ def render_report_figures(
     size_values = [int(dark_size_counter.get(k, 0)) for k in size_labels]
     plt.figure(figsize=(6, 4))
     plt.bar(size_labels, size_values)
-    plt.title("Dark Subset Size Distribution")
+    plt.title("Train Dark Subset Size Distribution")
     plt.ylabel("Object Count")
     plt.tight_layout()
     path = fig_dir / "dark_subset_size_distribution.png"
@@ -588,11 +736,41 @@ def write_dataset_yaml(config_path: Path, root_path: Path) -> None:
     write_text(config_path, "\n".join(text_lines) + "\n")
 
 
+def write_rgb_ir_dataset_yaml(config_path: Path, original_root: Path) -> None:
+    """写出双模态训练配置，供 E5/E6 等 RGB-IR 融合实验使用。"""
+    text_lines = [
+        f"path: {original_root}",
+        "train: rgb/images/train",
+        "val: rgb/images/val",
+        "test: rgb/images/test",
+        "",
+        "rgb:",
+        f"  path: {original_root / 'rgb'}",
+        "  train: images/train",
+        "  val: images/val",
+        "  test: images/test",
+        "",
+        "ir:",
+        f"  path: {original_root / 'ir'}",
+        "  train: images/train",
+        "  val: images/val",
+        "  test: images/test",
+        "",
+        "channels: 6",
+        "",
+        "names:",
+    ]
+    for idx, name in enumerate(CLASS_NAMES):
+        text_lines.append(f"  {idx}: {name}")
+    write_text(config_path, "\n".join(text_lines) + "\n")
+
+
 def run_convert(
     raw_root: Path,
     prepared_root: Path,
     config_root: Path,
     link_mode: str,
+    crop_border: int,
 ) -> Dict[str, object]:
     original_root = get_original_split_root(prepared_root)
     ensure_dir(original_root)
@@ -604,11 +782,14 @@ def run_convert(
         "prepared_root": str(prepared_root),
         "original_split_root": str(original_root),
         "link_mode": link_mode,
+        "crop_border": crop_border,
         "splits": {},
     }
 
     for modality in ("rgb", "ir"):
         for split in ("train", "val", "test"):
+            shutil.rmtree(original_root / modality / "images" / split, ignore_errors=True)
+            shutil.rmtree(original_root / modality / "labels" / split, ignore_errors=True)
             ensure_dir(original_root / modality / "images" / split)
             ensure_dir(original_root / modality / "labels" / split)
 
@@ -616,7 +797,14 @@ def run_convert(
 
     for spec in SPLIT_SPECS:
         maps = split_maps(raw_root, spec)
-        paired_stems = set(maps["rgb_imgs"].keys()) & set(maps["ir_imgs"].keys()) & set(maps["rgb_xml"].keys())
+        # 二次划分必须保证 RGB/IR 图像与两侧 XML 标注同时存在。
+        # 当前 YOLO 标签采用 RGB XML 生成并同步给 IR，IR XML 用于配对完整性约束。
+        paired_stems = (
+            set(maps["rgb_imgs"].keys())
+            & set(maps["ir_imgs"].keys())
+            & set(maps["rgb_xml"].keys())
+            & set(maps["ir_xml"].keys())
+        )
 
         split_stats = {
             "paired_stems": len(paired_stems),
@@ -648,16 +836,21 @@ def run_convert(
             lines = []
             for cls_name, bbox in boxes:
                 cls_id = CLASS_TO_ID[cls_name]
+                cropped_bbox = crop_bbox_to_image(bbox, width, height, crop_border)
+                if cropped_bbox is None:
+                    continue
                 split_stats["class_counts"][cls_name] += 1
-                lines.append(yolo_line_from_bbox(cls_id, bbox, width, height))
+                cropped_width = width - crop_border * 2 if crop_border else width
+                cropped_height = height - crop_border * 2 if crop_border else height
+                lines.append(yolo_line_from_bbox(cls_id, cropped_bbox, cropped_width, cropped_height))
 
             rgb_img_dst = original_root / "rgb" / "images" / spec.split / f"{stem}{rgb_img.suffix.lower()}"
             ir_img_dst = original_root / "ir" / "images" / spec.split / f"{stem}{ir_img.suffix.lower()}"
             rgb_lbl_dst = original_root / "rgb" / "labels" / spec.split / f"{stem}.txt"
             ir_lbl_dst = original_root / "ir" / "labels" / spec.split / f"{stem}.txt"
 
-            safe_link_or_copy(rgb_img, rgb_img_dst, link_mode)
-            safe_link_or_copy(ir_img, ir_img_dst, link_mode)
+            save_cropped_image(rgb_img, rgb_img_dst, crop_border, overwrite=True)
+            save_cropped_image(ir_img, ir_img_dst, crop_border, overwrite=True)
 
             write_text(rgb_lbl_dst, "\n".join(lines) + ("\n" if lines else ""))
             write_text(ir_lbl_dst, "\n".join(lines) + ("\n" if lines else ""))
@@ -677,6 +870,7 @@ def run_convert(
 
     write_dataset_yaml(config_root / "dronevehicle_resplit_rgb.yaml", original_root / "rgb")
     write_dataset_yaml(config_root / "dronevehicle_resplit_ir.yaml", original_root / "ir")
+    write_rgb_ir_dataset_yaml(config_root / "dronevehicle_resplit_rgb_ir.yaml", original_root)
 
     return summary
 
@@ -699,36 +893,32 @@ def load_yolo_labels(label_path: Path) -> List[Tuple[int, float, float, float, f
     return records
 
 
-def calc_brightness(img_path: Path) -> float:
-    with Image.open(img_path) as img:
-        gray = img.convert("L")
-        return float(ImageStat.Stat(gray).mean[0])
-
-
 def run_report(
     prepared_root: Path,
     report_root: Path,
     brightness_q_low: float,
     brightness_q_high: float,
-    small_px: float,
-    medium_px: float,
+    area_q_small: float,
+    area_q_tiny: float,
+    contrast_q_low: float,
+    contrast_ring_scale: float,
 ) -> Dict[str, object]:
     ensure_dir(report_root)
     original_root = get_original_split_root(prepared_root)
 
-    small_thr = float(small_px * small_px)
-    medium_thr = float(medium_px * medium_px)
-
-    split_stats = {}
+    split_stats: Dict[str, Dict[str, object]] = {}
     class_total = Counter()
     bbox_w_all: List[float] = []
     bbox_h_all: List[float] = []
     bbox_area_all: List[float] = []
     objs_per_image_all: List[int] = []
     brightness_all: List[float] = []
+    contrast_all: List[float] = []
 
-    val_brightness_by_stem: Dict[str, float] = {}
-    val_obj_by_stem: Dict[str, Dict[str, int]] = {}
+    train_brightness: List[float] = []
+    train_object_areas: List[float] = []
+    train_object_contrasts: List[float] = []
+    image_rows: List[Dict[str, object]] = []
 
     for split in ("train", "val", "test"):
         img_dir = original_root / "rgb" / "images" / split
@@ -737,35 +927,45 @@ def run_report(
         stems = sorted(img_map.keys())
 
         split_class_counter = Counter()
-        split_sizes = Counter()
         split_bbox_w: List[float] = []
         split_bbox_h: List[float] = []
         split_bbox_area: List[float] = []
-        split_objs_per_image: List[int] = []
+        split_object_areas: List[float] = []
+        split_object_contrasts: List[float] = []
         split_brightness: List[float] = []
+        split_objs_per_image: List[int] = []
 
         for idx, stem in enumerate(stems, start=1):
             img_path = img_map[stem]
-            with Image.open(img_path) as img:
-                w, h = img.size
-
             labels = load_yolo_labels(lab_dir / f"{stem}.txt")
+            analysis = analyze_image_record(img_path, labels, contrast_ring_scale)
+            width = int(analysis["width"])
+            height = int(analysis["height"])
+            brightness = float(analysis["brightness"])
+            areas = list(analysis["area_values"])
+            contrasts = list(analysis["contrast_values"])
+
             split_objs_per_image.append(len(labels))
             objs_per_image_all.append(len(labels))
+            split_brightness.append(brightness)
+            brightness_all.append(brightness)
+            split_object_areas.extend(areas)
+            split_object_contrasts.extend(contrasts)
+            contrast_all.extend(contrasts)
 
-            size_counter_for_image = Counter()
-            for cls_id, _xc, _yc, bw, bh in labels:
+            if split == "train":
+                train_brightness.append(brightness)
+                train_object_areas.extend(areas)
+                train_object_contrasts.extend(contrasts)
+
+            for cls_id, xc, yc, bw, bh in labels:
                 cls_name = CLASS_NAMES[cls_id] if 0 <= cls_id < len(CLASS_NAMES) else f"cls_{cls_id}"
                 split_class_counter[cls_name] += 1
                 class_total[cls_name] += 1
 
-                bw_px = bw * w
-                bh_px = bh * h
+                bw_px = bw * width
+                bh_px = bh * height
                 area_px = bw_px * bh_px
-                bucket = size_bucket(area_px, small_thr, medium_thr)
-                split_sizes[bucket] += 1
-                size_counter_for_image[bucket] += 1
-
                 split_bbox_w.append(bw_px)
                 split_bbox_h.append(bh_px)
                 split_bbox_area.append(area_px)
@@ -773,17 +973,22 @@ def run_report(
                 bbox_h_all.append(bh_px)
                 bbox_area_all.append(area_px)
 
-            brightness = calc_brightness(img_path)
-            split_brightness.append(brightness)
-            brightness_all.append(brightness)
-            if split == "val":
-                val_brightness_by_stem[stem] = brightness
-                val_obj_by_stem[stem] = {
-                    "small": size_counter_for_image["small"],
-                    "medium": size_counter_for_image["medium"],
-                    "large": size_counter_for_image["large"],
-                    "total": len(labels),
+            image_rows.append(
+                {
+                    "split": split,
+                    "stem": stem,
+                    "brightness": brightness,
+                    "object_count": len(labels),
+                    "min_object_area": float(min(areas)) if areas else 0.0,
+                    "mean_object_area": float(np.mean(areas)) if areas else 0.0,
+                    "min_object_contrast": float(min(contrasts)) if contrasts else 0.0,
+                    "mean_object_contrast": float(np.mean(contrasts)) if contrasts else 0.0,
+                    "width": width,
+                    "height": height,
+                    "_areas": areas,
+                    "_contrasts": contrasts,
                 }
+            )
 
             if idx % 2000 == 0:
                 print(f"[report:{split}] processed {idx}/{len(stems)}")
@@ -794,13 +999,6 @@ def run_report(
             "class_counts": dict(split_class_counter),
             "avg_objects_per_image": float(np.mean(split_objs_per_image)) if split_objs_per_image else 0.0,
             "median_objects_per_image": float(np.median(split_objs_per_image)) if split_objs_per_image else 0.0,
-            "size_buckets": dict(split_sizes),
-            "brightness": {
-                "mean": float(np.mean(split_brightness)) if split_brightness else 0.0,
-                "median": float(np.median(split_brightness)) if split_brightness else 0.0,
-                "q10": float(np.quantile(split_brightness, 0.10)) if split_brightness else 0.0,
-                "q90": float(np.quantile(split_brightness, 0.90)) if split_brightness else 0.0,
-            },
             "bbox_w_px": {
                 "mean": float(np.mean(split_bbox_w)) if split_bbox_w else 0.0,
                 "median": float(np.median(split_bbox_w)) if split_bbox_w else 0.0,
@@ -813,44 +1011,103 @@ def run_report(
                 "mean": float(np.mean(split_bbox_area)) if split_bbox_area else 0.0,
                 "median": float(np.median(split_bbox_area)) if split_bbox_area else 0.0,
             },
+            "brightness": {
+                "mean": float(np.mean(split_brightness)) if split_brightness else 0.0,
+                "median": float(np.median(split_brightness)) if split_brightness else 0.0,
+                "q10": float(np.quantile(split_brightness, 0.10)) if split_brightness else 0.0,
+                "q90": float(np.quantile(split_brightness, 0.90)) if split_brightness else 0.0,
+            },
+            "object_area": {
+                "mean": float(np.mean(split_object_areas)) if split_object_areas else 0.0,
+                "median": float(np.median(split_object_areas)) if split_object_areas else 0.0,
+                "q25": float(np.quantile(split_object_areas, 0.25)) if split_object_areas else 0.0,
+                "q75": float(np.quantile(split_object_areas, 0.75)) if split_object_areas else 0.0,
+            },
+            "object_contrast": {
+                "mean": float(np.mean(split_object_contrasts)) if split_object_contrasts else 0.0,
+                "median": float(np.median(split_object_contrasts)) if split_object_contrasts else 0.0,
+                "q25": float(np.quantile(split_object_contrasts, 0.25)) if split_object_contrasts else 0.0,
+            },
         }
 
-    val_brightness_values = np.array(list(val_brightness_by_stem.values()), dtype=np.float32)
-    dark_thr = float(np.quantile(val_brightness_values, brightness_q_low)) if len(val_brightness_values) else 0.0
-    bright_thr = float(np.quantile(val_brightness_values, brightness_q_high)) if len(val_brightness_values) else 255.0
+    train_brightness_values = np.array(train_brightness, dtype=np.float32)
+    train_area_values = np.array(train_object_areas, dtype=np.float32)
+    train_contrast_values = np.array(train_object_contrasts, dtype=np.float32)
 
-    val_bucket_counts = Counter()
-    dark_size_counter = Counter()
-    dark_image_count = 0
-    dark_obj_total = 0
+    dark_thr = float(np.quantile(train_brightness_values, brightness_q_low)) if len(train_brightness_values) else 0.0
+    bright_thr = float(np.quantile(train_brightness_values, brightness_q_high)) if len(train_brightness_values) else 255.0
+    small_thr = float(np.quantile(train_area_values, area_q_small)) if len(train_area_values) else 0.0
+    tiny_thr = float(np.quantile(train_area_values, area_q_tiny)) if len(train_area_values) else 0.0
+    medium_thr = float(np.quantile(train_area_values, 0.75)) if len(train_area_values) else 0.0
+    low_contrast_thr = float(np.quantile(train_contrast_values, contrast_q_low)) if len(train_contrast_values) else 0.0
 
-    metadata_lines = [
-        "stem,brightness,bucket,objects_total,objects_small,objects_medium,objects_large"
-    ]
+    train_bucket_counts = Counter()
+    train_dark_size_counter = Counter()
+    train_dark_image_count = 0
+    train_dark_object_count = 0
 
-    for stem in sorted(val_brightness_by_stem.keys()):
-        b = val_brightness_by_stem[stem]
-        if b <= dark_thr:
+    for row in image_rows:
+        if row["split"] != "train":
+            continue
+        brightness = float(row["brightness"])
+        areas = list(row["_areas"])
+        if brightness <= dark_thr:
             bucket = "dark"
-        elif b >= bright_thr:
+            train_dark_image_count += 1
+            train_dark_object_count += len(areas)
+            for area in areas:
+                train_dark_size_counter[size_bucket(float(area), small_thr, medium_thr)] += 1
+        elif brightness >= bright_thr:
             bucket = "bright"
         else:
             bucket = "normal"
-        val_bucket_counts[bucket] += 1
+        train_bucket_counts[bucket] += 1
 
-        obj_info = val_obj_by_stem[stem]
-        metadata_lines.append(
-            f"{stem},{b:.4f},{bucket},{obj_info['total']},{obj_info['small']},{obj_info['medium']},{obj_info['large']}"
-        )
+    for row in image_rows:
+        row.pop("_areas", None)
+        row.pop("_contrasts", None)
 
-        if bucket == "dark":
-            dark_image_count += 1
-            dark_obj_total += obj_info["total"]
-            dark_size_counter["small"] += obj_info["small"]
-            dark_size_counter["medium"] += obj_info["medium"]
-            dark_size_counter["large"] += obj_info["large"]
+    crop_width = None
+    crop_height = None
+    if image_rows:
+        sample_width = int(image_rows[0]["width"])
+        sample_height = int(image_rows[0]["height"])
+        crop_width = sample_width
+        crop_height = sample_height
 
-    dark_avg_obj = (dark_obj_total / dark_image_count) if dark_image_count > 0 else 0.0
+    train_thresholds = {
+        "threshold_source": "train split only",
+        "crop_border": CROP_BORDER_PX,
+        "cropped_image_size": {
+            "width": crop_width,
+            "height": crop_height,
+        },
+        "brightness_dark_threshold": dark_thr,
+        "brightness_bright_threshold": bright_thr,
+        "object_area_small_threshold": small_thr,
+        "object_area_tiny_threshold": tiny_thr,
+        "object_area_medium_threshold": medium_thr,
+        "low_contrast_threshold": low_contrast_thr,
+        "brightness_quantiles": {
+            "dark_q": brightness_q_low,
+            "bright_q": brightness_q_high,
+        },
+        "object_area_quantiles": {
+            "small_q": area_q_small,
+            "tiny_q": area_q_tiny,
+            "medium_q": 0.75,
+        },
+        "contrast_quantiles": {
+            "low_q": contrast_q_low,
+        },
+        "contrast_ring_scale": contrast_ring_scale,
+        "summary": {
+            "train_images": int(len(train_brightness_values)),
+            "train_objects": int(len(train_area_values)),
+            "train_dark_images": int(train_dark_image_count),
+            "train_dark_objects": int(train_dark_object_count),
+        },
+    }
 
     visualizations = render_report_figures(
         report_root=report_root,
@@ -860,8 +1117,8 @@ def run_report(
         brightness_all=brightness_all,
         dark_thr=dark_thr,
         bright_thr=bright_thr,
-        val_bucket_counts=val_bucket_counts,
-        dark_size_counter=dark_size_counter,
+        val_bucket_counts=train_bucket_counts,
+        dark_size_counter=train_dark_size_counter,
         split_stats=split_stats,
     )
 
@@ -870,17 +1127,9 @@ def run_report(
         "prepared_root": str(prepared_root),
         "original_split_root": str(original_root),
         "report_root": str(report_root),
+        "protocol": "DroneVehicle-DarkSmall-v1",
         "class_names": CLASS_NAMES,
-        "size_thresholds_px": {
-            "small_lt": small_px,
-            "medium_lt": medium_px,
-        },
-        "brightness_thresholds": {
-            "dark_max": dark_thr,
-            "bright_min": bright_thr,
-            "q_low": brightness_q_low,
-            "q_high": brightness_q_high,
-        },
+        "train_thresholds": train_thresholds,
         "overall": {
             "objects_total": int(sum(class_total.values())),
             "class_counts": dict(class_total),
@@ -899,33 +1148,58 @@ def run_report(
                 "q10": float(np.quantile(bbox_area_all, 0.1)) if bbox_area_all else 0.0,
                 "q90": float(np.quantile(bbox_area_all, 0.9)) if bbox_area_all else 0.0,
             },
+            "contrast": {
+                "mean": float(np.mean(contrast_all)) if contrast_all else 0.0,
+                "median": float(np.median(contrast_all)) if contrast_all else 0.0,
+            },
         },
         "splits": split_stats,
-        "val_brightness_buckets": dict(val_bucket_counts),
-        "dark_subset": {
-            "images": dark_image_count,
-            "avg_objects_per_image": dark_avg_obj,
-            "size_distribution": dict(dark_size_counter),
-        },
         "visualizations": visualizations,
     }
 
     write_json(report_root / "data_report.json", report)
-    write_text(report_root / "val_image_metadata.csv", "\n".join(metadata_lines) + "\n")
+    write_json(report_root / "train_thresholds.json", train_thresholds)
+    write_csv_rows(
+        report_root / "image_metadata.csv",
+        [
+            "split",
+            "stem",
+            "brightness",
+            "object_count",
+            "min_object_area",
+            "mean_object_area",
+            "min_object_contrast",
+            "mean_object_contrast",
+            "width",
+            "height",
+        ],
+        image_rows,
+    )
 
     md = [
         "# DroneVehicle Data Report",
         "",
-        "## Key Statistics",
+        "## Protocol",
+        "",
+        "- protocol: DroneVehicle-DarkSmall-v1",
+        f"- crop border: {CROP_BORDER_PX}px",
+        "- thresholds are learned from train split only",
+        "",
+        "## Train Thresholds",
+        "",
+        f"- brightness dark threshold: {dark_thr:.6f}",
+        f"- object area small threshold: {small_thr:.6f}",
+        f"- object area tiny threshold: {tiny_thr:.6f}",
+        f"- low-contrast threshold: {low_contrast_thr:.6f}",
+        "",
+        "## Summary",
         "",
         f"- total objects: {report['overall']['objects_total']}",
         f"- avg objects per image: {report['overall']['avg_objects_per_image']:.4f}",
-        f"- brightness thresholds: dark <= {dark_thr:.3f}, bright >= {bright_thr:.3f}",
-        f"- val brightness buckets: {dict(val_bucket_counts)}",
-        f"- dark subset avg objects/image: {dark_avg_obj:.4f}",
-        f"- dark subset size distribution: {dict(dark_size_counter)}",
+        f"- train dark images: {train_dark_image_count}",
+        f"- train dark objects: {train_dark_object_count}",
         "",
-        "## Required Metrics Protocol",
+        "## Metrics Protocol",
         "",
         "Report these metrics in every experiment:",
         "- mAP50",
@@ -946,6 +1220,7 @@ def run_report(
         "",
     ]
     write_text(report_root / "data_report.md", "\n".join(md) + "\n")
+    write_text(report_root / "protocol_summary.md", "\n".join(md) + "\n")
     return report
 
 
@@ -966,170 +1241,306 @@ def filtered_lines_by_size(
     return kept
 
 
-def read_val_metadata(metadata_csv: Path) -> Dict[str, Dict[str, object]]:
-    rows: Dict[str, Dict[str, object]] = {}
+def load_image_metadata_csv(metadata_csv: Path) -> Dict[str, Dict[str, Dict[str, object]]]:
+    rows: Dict[str, Dict[str, Dict[str, object]]] = {"train": {}, "val": {}, "test": {}}
+    if not metadata_csv.exists():
+        return rows
+
     with open(metadata_csv, "r", encoding="utf-8") as f:
-        header = f.readline()
-        if not header:
-            return rows
-        for line in f:
-            line = line.strip()
-            if not line:
+        reader = csv.DictReader(f)
+        for row in reader:
+            split = str(row.get("split", "")).strip()
+            stem = str(row.get("stem", "")).strip()
+            if split not in rows or not stem:
                 continue
-            stem, brightness, bucket, total, small, medium, large = line.split(",")
-            rows[stem] = {
-                "brightness": float(brightness),
-                "bucket": bucket,
-                "total": int(total),
-                "small": int(small),
-                "medium": int(medium),
-                "large": int(large),
+            rows[split][stem] = {
+                "brightness": float(row.get("brightness", 0.0) or 0.0),
+                "object_count": int(float(row.get("object_count", 0) or 0)),
+                "min_object_area": float(row.get("min_object_area", 0.0) or 0.0),
+                "mean_object_area": float(row.get("mean_object_area", 0.0) or 0.0),
+                "min_object_contrast": float(row.get("min_object_contrast", 0.0) or 0.0),
+                "mean_object_contrast": float(row.get("mean_object_contrast", 0.0) or 0.0),
+                "width": int(float(row.get("width", 0) or 0)),
+                "height": int(float(row.get("height", 0) or 0)),
             }
     return rows
-
-
-def write_subset_yaml(path: Path, dataset_root: Path) -> None:
-    lines = [
-        f"path: {dataset_root}",
-        "val: images/val",
-        "",
-        "names:",
-    ]
-    for idx, name in enumerate(CLASS_NAMES):
-        lines.append(f"  {idx}: {name}")
-    write_text(path, "\n".join(lines) + "\n")
 
 
 def run_subsets(
     prepared_root: Path,
     report_root: Path,
     config_root: Path,
-    small_px: float,
-    medium_px: float,
     keep_empty: bool,
     link_mode: str,
 ) -> Dict[str, object]:
     original_root = get_original_split_root(prepared_root)
     resplit_root = get_resplit_subset_root(prepared_root)
-    metadata_csv = report_root / "val_image_metadata.csv"
+    metadata_csv = report_root / "image_metadata.csv"
+    thresholds_path = report_root / "train_thresholds.json"
     if not metadata_csv.exists():
         raise FileNotFoundError(
             f"Missing {metadata_csv}. Run 'report' before 'subsets' or use command 'all'."
         )
+    if not thresholds_path.exists():
+        raise FileNotFoundError(
+            f"Missing {thresholds_path}. Run 'report' before 'subsets' or use command 'all'."
+        )
 
-    val_meta = read_val_metadata(metadata_csv)
-    if not val_meta:
-        raise RuntimeError("val metadata is empty")
+    with thresholds_path.open("r", encoding="utf-8") as f:
+        thresholds = json.load(f)
+    if not isinstance(thresholds, dict):
+        raise RuntimeError("train_thresholds.json is invalid")
 
-    small_thr = float(small_px * small_px)
-    medium_thr = float(medium_px * medium_px)
+    meta = load_image_metadata_csv(metadata_csv)
+    if not meta["train"]:
+        raise RuntimeError("image metadata is empty")
 
-    all_val_stems = sorted(val_meta.keys())
-    bright_stems = sorted([k for k, v in val_meta.items() if v["bucket"] == "bright"])
-    normal_stems = sorted([k for k, v in val_meta.items() if v["bucket"] == "normal"])
-    dark_stems = sorted([k for k, v in val_meta.items() if v["bucket"] == "dark"])
+    dark_thr = float(thresholds.get("brightness_dark_threshold", 0.0))
+    small_thr = float(thresholds.get("object_area_small_threshold", 0.0))
+    tiny_thr = float(thresholds.get("object_area_tiny_threshold", 0.0))
+    low_contrast_thr = float(thresholds.get("low_contrast_threshold", 0.0))
+    crop_border = int(thresholds.get("crop_border", CROP_BORDER_PX))
 
     subset_defs = {
-        "bright": {"stems": bright_stems, "size_filter": None},
-        "normal": {"stems": normal_stems, "size_filter": None},
-        "dark": {"stems": dark_stems, "size_filter": None},
-        "small": {"stems": all_val_stems, "size_filter": "small"},
-        "medium": {"stems": all_val_stems, "size_filter": "medium"},
-        "large": {"stems": all_val_stems, "size_filter": "large"},
-        "dark-small": {"stems": dark_stems, "size_filter": "small"},
+        "dark": lambda row: float(row["brightness"]) <= dark_thr,
+        "small": lambda row: float(row["min_object_area"]) <= small_thr,
+        "tiny": lambda row: float(row["min_object_area"]) <= tiny_thr,
+        "dark-small": lambda row: float(row["brightness"]) <= dark_thr and float(row["min_object_area"]) <= small_thr,
+        "low-contrast": lambda row: float(row["min_object_contrast"]) <= low_contrast_thr,
     }
 
     subset_summary = {
+        "protocol": "DroneVehicle-DarkSmall-v1",
         "prepared_root": str(prepared_root),
         "original_split_root": str(original_root),
         "resplit_subset_root": str(resplit_root),
         "keep_empty_images": keep_empty,
         "link_mode": link_mode,
+        "crop_border": crop_border,
+        "thresholds": thresholds,
         "subsets": {},
     }
+    subset_counts_rows: List[Dict[str, object]] = []
 
     subset_config_dir = config_root / "subsets"
     ensure_dir(subset_config_dir)
 
-    for modality in ("rgb", "ir"):
-        src_img_dir = original_root / modality / "images" / "val"
-        src_lab_dir = original_root / modality / "labels" / "val"
-        src_imgs = collect_stem_to_file(src_img_dir, IMAGE_SUFFIXES)
+    def _reset_root(root: Path) -> None:
+        shutil.rmtree(root, ignore_errors=True)
+        ensure_dir(root)
 
-        for subset_name, cfg in subset_defs.items():
-            stems = cfg["stems"]
-            size_filter = cfg["size_filter"]
+    for subset_name, predicate in subset_defs.items():
+        subset_summary["subsets"][subset_name] = {}
 
-            dst_root = resplit_root / modality / subset_name
-            dst_img_dir = dst_root / "images" / "val"
-            dst_lab_dir = dst_root / "labels" / "val"
-            ensure_dir(dst_img_dir)
-            ensure_dir(dst_lab_dir)
+        rgb_root = resplit_root / "rgb" / subset_name
+        ir_root = resplit_root / "ir" / subset_name
+        rgb_ir_root = resplit_root / "rgb_ir" / subset_name
+        _reset_root(rgb_root)
+        _reset_root(ir_root)
+        _reset_root(rgb_ir_root)
 
-            images_written = 0
-            labels_written = 0
-            objects_written = 0
+        for split in ("train", "val", "test"):
+            rgb_src_img_dir = original_root / "rgb" / "images" / split
+            rgb_src_lab_dir = original_root / "rgb" / "labels" / split
+            ir_src_img_dir = original_root / "ir" / "images" / split
+            ir_src_lab_dir = original_root / "ir" / "labels" / split
 
-            for stem in stems:
-                img_path = src_imgs.get(stem)
-                if img_path is None:
+            rgb_src_imgs = collect_stem_to_file(rgb_src_img_dir, IMAGE_SUFFIXES)
+            ir_src_imgs = collect_stem_to_file(ir_src_img_dir, IMAGE_SUFFIXES)
+
+            selected_stems = [stem for stem, row in meta[split].items() if predicate(row)]
+            selected_stems = sorted(selected_stems)
+
+            rgb_img_written = 0
+            rgb_obj_written = 0
+            rgb_label_written = 0
+            ir_img_written = 0
+            ir_obj_written = 0
+            ir_label_written = 0
+            paired_img_written = 0
+            paired_obj_written = 0
+            paired_label_written = 0
+
+            for stem in selected_stems:
+                rgb_img_path = rgb_src_imgs.get(stem)
+                ir_img_path = ir_src_imgs.get(stem)
+                if rgb_img_path is None or ir_img_path is None:
                     continue
 
-                with Image.open(img_path) as img:
-                    w, h = img.size
-
-                labels = load_yolo_labels(src_lab_dir / f"{stem}.txt")
-                if size_filter is None:
-                    out_lines = [
-                        f"{cls_id} {xc:.6f} {yc:.6f} {bw:.6f} {bh:.6f}"
-                        for cls_id, xc, yc, bw, bh in labels
-                    ]
-                else:
-                    out_lines = filtered_lines_by_size(
-                        labels,
-                        w,
-                        h,
-                        size_filter,
-                        small_thr,
-                        medium_thr,
-                    )
-
-                if not keep_empty and len(out_lines) == 0:
+                rgb_labels = load_yolo_labels(rgb_src_lab_dir / f"{stem}.txt")
+                ir_labels = load_yolo_labels(ir_src_lab_dir / f"{stem}.txt")
+                if not keep_empty and (len(rgb_labels) == 0 or len(ir_labels) == 0):
                     continue
 
-                img_dst = dst_img_dir / f"{stem}{img_path.suffix.lower()}"
-                lab_dst = dst_lab_dir / f"{stem}.txt"
+                rgb_img_dst = rgb_root / "images" / split / f"{stem}{rgb_img_path.suffix.lower()}"
+                rgb_lab_dst = rgb_root / "labels" / split / f"{stem}.txt"
+                ir_img_dst = ir_root / "images" / split / f"{stem}{ir_img_path.suffix.lower()}"
+                ir_lab_dst = ir_root / "labels" / split / f"{stem}.txt"
 
-                safe_link_or_copy(img_path, img_dst, link_mode)
-                write_text(lab_dst, "\n".join(out_lines) + ("\n" if out_lines else ""))
+                safe_link_or_copy(rgb_img_path, rgb_img_dst, link_mode, overwrite=True)
+                safe_link_or_copy(ir_img_path, ir_img_dst, link_mode, overwrite=True)
+                write_text(rgb_lab_dst, "\n".join(
+                    f"{cls_id} {xc:.6f} {yc:.6f} {bw:.6f} {bh:.6f}" for cls_id, xc, yc, bw, bh in rgb_labels
+                ) + ("\n" if rgb_labels else ""))
+                write_text(ir_lab_dst, "\n".join(
+                    f"{cls_id} {xc:.6f} {yc:.6f} {bw:.6f} {bh:.6f}" for cls_id, xc, yc, bw, bh in ir_labels
+                ) + ("\n" if ir_labels else ""))
 
-                images_written += 1
-                labels_written += 1
-                objects_written += len(out_lines)
+                rgb_img_written += 1
+                rgb_label_written += 1
+                rgb_obj_written += len(rgb_labels)
+                ir_img_written += 1
+                ir_label_written += 1
+                ir_obj_written += len(ir_labels)
 
-            subset_summary["subsets"].setdefault(subset_name, {})[modality] = {
-                "candidate_stems": len(stems),
-                "images_written": images_written,
-                "labels_written": labels_written,
-                "objects_written": objects_written,
-                "size_filter": size_filter,
+                rgb_ir_rgb_img_dst = rgb_ir_root / "rgb" / "images" / split / f"{stem}{rgb_img_path.suffix.lower()}"
+                rgb_ir_rgb_lab_dst = rgb_ir_root / "rgb" / "labels" / split / f"{stem}.txt"
+                rgb_ir_ir_img_dst = rgb_ir_root / "ir" / "images" / split / f"{stem}{ir_img_path.suffix.lower()}"
+                rgb_ir_ir_lab_dst = rgb_ir_root / "ir" / "labels" / split / f"{stem}.txt"
+                safe_link_or_copy(rgb_img_path, rgb_ir_rgb_img_dst, link_mode, overwrite=True)
+                safe_link_or_copy(ir_img_path, rgb_ir_ir_img_dst, link_mode, overwrite=True)
+                write_text(rgb_ir_rgb_lab_dst, "\n".join(
+                    f"{cls_id} {xc:.6f} {yc:.6f} {bw:.6f} {bh:.6f}" for cls_id, xc, yc, bw, bh in rgb_labels
+                ) + ("\n" if rgb_labels else ""))
+                write_text(rgb_ir_ir_lab_dst, "\n".join(
+                    f"{cls_id} {xc:.6f} {yc:.6f} {bw:.6f} {bh:.6f}" for cls_id, xc, yc, bw, bh in ir_labels
+                ) + ("\n" if ir_labels else ""))
+
+                paired_img_written += 2
+                paired_label_written += 2
+                paired_obj_written += len(rgb_labels) + len(ir_labels)
+
+            subset_summary["subsets"][subset_name][split] = {
+                "rgb": {
+                    "candidate_images": len(meta[split]),
+                    "selected_images": len(selected_stems),
+                    "images_written": rgb_img_written,
+                    "labels_written": rgb_label_written,
+                    "objects_written": rgb_obj_written,
+                },
+                "ir": {
+                    "candidate_images": len(meta[split]),
+                    "selected_images": len(selected_stems),
+                    "images_written": ir_img_written,
+                    "labels_written": ir_label_written,
+                    "objects_written": ir_obj_written,
+                },
+                "rgb_ir": {
+                    "candidate_images": len(meta[split]),
+                    "selected_images": len(selected_stems),
+                    "images_written": paired_img_written,
+                    "labels_written": paired_label_written,
+                    "objects_written": paired_obj_written,
+                },
             }
 
-            subset_yaml = subset_config_dir / f"{modality}_{subset_name}.yaml"
-            write_subset_yaml(subset_yaml, dst_root)
+            subset_counts_rows.extend(
+                [
+                    {
+                        "subset": subset_name,
+                        "split": split,
+                        "modality": "rgb",
+                        "candidate_images": len(meta[split]),
+                        "selected_images": len(selected_stems),
+                        "images_written": rgb_img_written,
+                        "labels_written": rgb_label_written,
+                        "objects_written": rgb_obj_written,
+                        "dark_threshold": dark_thr,
+                        "small_threshold": small_thr,
+                        "tiny_threshold": tiny_thr,
+                        "low_contrast_threshold": low_contrast_thr,
+                    },
+                    {
+                        "subset": subset_name,
+                        "split": split,
+                        "modality": "ir",
+                        "candidate_images": len(meta[split]),
+                        "selected_images": len(selected_stems),
+                        "images_written": ir_img_written,
+                        "labels_written": ir_label_written,
+                        "objects_written": ir_obj_written,
+                        "dark_threshold": dark_thr,
+                        "small_threshold": small_thr,
+                        "tiny_threshold": tiny_thr,
+                        "low_contrast_threshold": low_contrast_thr,
+                    },
+                    {
+                        "subset": subset_name,
+                        "split": split,
+                        "modality": "rgb_ir",
+                        "candidate_images": len(meta[split]),
+                        "selected_images": len(selected_stems),
+                        "images_written": paired_img_written,
+                        "labels_written": paired_label_written,
+                        "objects_written": paired_obj_written,
+                        "dark_threshold": dark_thr,
+                        "small_threshold": small_thr,
+                        "tiny_threshold": tiny_thr,
+                        "low_contrast_threshold": low_contrast_thr,
+                    },
+                ]
+            )
+
+        write_dataset_yaml(subset_config_dir / f"rgb_{subset_name}.yaml", rgb_root)
+        write_dataset_yaml(subset_config_dir / f"ir_{subset_name}.yaml", ir_root)
+        write_rgb_ir_dataset_yaml(subset_config_dir / f"rgb_ir_{subset_name}.yaml", rgb_ir_root)
 
     write_json(report_root / "subset_summary.json", subset_summary)
+    write_csv_rows(
+        report_root / "subset_counts.csv",
+        [
+            "subset",
+            "split",
+            "modality",
+            "candidate_images",
+            "selected_images",
+            "images_written",
+            "labels_written",
+            "objects_written",
+            "dark_threshold",
+            "small_threshold",
+            "tiny_threshold",
+            "low_contrast_threshold",
+        ],
+        subset_counts_rows,
+    )
 
     protocol_md = [
-        "# Dataset Resplit Evaluation Protocol",
+        "# DroneVehicle-DarkSmall-v1 Protocol Summary",
         "",
-        "Run the same model checkpoint on these subsets:",
-        f"- full val: {config_root / 'dronevehicle_resplit_rgb.yaml'}",
-        f"- dark: {subset_config_dir / 'rgb_dark.yaml'}",
-        f"- small: {subset_config_dir / 'rgb_small.yaml'}",
-        f"- dark-small: {subset_config_dir / 'rgb_dark-small.yaml'}",
+        "## Contract",
         "",
-        "Always report:",
+        "- keep original DroneVehicle train/val/test splits",
+        "- thresholds are learned from train only",
+        "- crop a 100px border before all statistics and label conversion",
+        "- AP_dark-small is image-level subset evaluation",
+        "- low-contrast is derived from train object contrast statistics",
+        "",
+        "## Train Thresholds",
+        "",
+        f"- brightness_dark_threshold: {dark_thr:.6f}",
+        f"- object_area_small_threshold: {small_thr:.6f}",
+        f"- object_area_tiny_threshold: {tiny_thr:.6f}",
+        f"- low_contrast_threshold: {low_contrast_thr:.6f}",
+        "",
+        "## Generated Subsets",
+        "",
+        "- train / val / test",
+        "- dark",
+        "- small",
+        "- tiny",
+        "- dark-small",
+        "- low-contrast",
+        "",
+        "## YAML Outputs",
+        "",
+        f"- {subset_config_dir / 'rgb_dark.yaml'}",
+        f"- {subset_config_dir / 'ir_dark.yaml'}",
+        f"- {subset_config_dir / 'rgb_ir_dark.yaml'}",
+        "",
+        "## Metrics",
+        "",
+        "Report these metrics in every experiment:",
         "- mAP50",
         "- mAP50-95",
         "- Recall",
@@ -1147,6 +1558,7 @@ def run_subsets(
         "- AP_dark-small",
         "",
     ]
+    write_text(report_root / "protocol_summary.md", "\n".join(protocol_md) + "\n")
     write_text(report_root / "evaluation_protocol.md", "\n".join(protocol_md) + "\n")
 
     return subset_summary
@@ -1185,13 +1597,16 @@ def parse_args() -> argparse.Namespace:
         "--log-root",
         dest="report_root",
         type=Path,
-        default=Path("/mnt/disk2/lhr/VSD/experiments/dronevehicle_resplit"),
+        default=Path("/mnt/disk2/lhr/VSD/results/dataset_audit"),
     )
     parser.add_argument("--iou-warn-threshold", type=float, default=0.90)
-    parser.add_argument("--brightness-q-low", type=float, default=0.33)
-    parser.add_argument("--brightness-q-high", type=float, default=0.67)
-    parser.add_argument("--size-small", type=float, default=32.0)
-    parser.add_argument("--size-medium", type=float, default=96.0)
+    parser.add_argument("--crop-border", type=int, default=CROP_BORDER_PX)
+    parser.add_argument("--brightness-q-low", type=float, default=0.25)
+    parser.add_argument("--brightness-q-high", type=float, default=0.75)
+    parser.add_argument("--area-q-small", type=float, default=0.25)
+    parser.add_argument("--area-q-tiny", type=float, default=0.10)
+    parser.add_argument("--contrast-q-low", type=float, default=0.25)
+    parser.add_argument("--contrast-ring-scale", type=float, default=CONTRAST_RING_SCALE)
     parser.add_argument(
         "--link-mode",
         choices=["symlink", "hardlink", "copy"],
@@ -1214,7 +1629,7 @@ def main() -> None:
 
     if args.command in {"convert", "all"}:
         print("[stage] convert")
-        run_convert(args.raw_root, args.prepared_root, args.config_root, args.link_mode)
+        run_convert(args.raw_root, args.prepared_root, args.config_root, args.link_mode, args.crop_border)
 
     if args.command in {"report", "all"}:
         print("[stage] report")
@@ -1223,8 +1638,10 @@ def main() -> None:
             args.report_root,
             args.brightness_q_low,
             args.brightness_q_high,
-            args.size_small,
-            args.size_medium,
+            args.area_q_small,
+            args.area_q_tiny,
+            args.contrast_q_low,
+            args.contrast_ring_scale,
         )
 
     if args.command in {"subsets", "all"}:
@@ -1233,8 +1650,6 @@ def main() -> None:
             args.prepared_root,
             args.report_root,
             args.config_root,
-            args.size_small,
-            args.size_medium,
             keep_empty=not args.drop_empty,
             link_mode=args.link_mode,
         )

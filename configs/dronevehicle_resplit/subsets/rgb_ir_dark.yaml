@@ -1,0 +1,25 @@
+path: /mnt/disk2/lhr/VSD/prepared/dronevehicle_resplit/resplit_subsets/rgb_ir/dark
+train: rgb/images/train
+val: rgb/images/val
+test: rgb/images/test
+
+rgb:
+  path: /mnt/disk2/lhr/VSD/prepared/dronevehicle_resplit/resplit_subsets/rgb_ir/dark/rgb
+  train: images/train
+  val: images/val
+  test: images/test
+
+ir:
+  path: /mnt/disk2/lhr/VSD/prepared/dronevehicle_resplit/resplit_subsets/rgb_ir/dark/ir
+  train: images/train
+  val: images/val
+  test: images/test
+
+channels: 6
+
+names:
+  0: car
+  1: truck
+  2: bus
+  3: van
+  4: freight_car

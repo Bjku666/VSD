@@ -1,16 +1,16 @@
 #!/bin/bash
-# 评估 YOLO11n RGB-only baseline，并导出 val/test 的标准与自定义指标。
+# 评估 YOLO11n IR-only baseline，并导出 val/test 的标准与自定义指标。
 # 用法：
-#   ./scripts/e1_val_rgb_only.sh [split] [model] [out_dir] [device] [case_topk] [case_max_images] [ultra_project] [skip_case_viz] [case_device] [case_batch] [imgsz]
+#   ./scripts/e2_val_ir_only.sh [split] [model] [out_dir] [device] [case_topk] [case_max_images] [ultra_project] [skip_case_viz] [case_device] [case_batch] [imgsz]
 set -euo pipefail
 
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate /mnt/disk2/lhr/conda_envs/vsd
 
 SPLIT="${1:-val}"
-MODEL_PATH="${2:-/mnt/disk2/lhr/VSD/experiments/e1_rgb_only/e1_yolo11n_rgb_only_640_ddp/weights/best.pt}"
+MODEL_PATH="${2:-/mnt/disk2/lhr/VSD/results/val/e2_yolo11n_ir_only_640_ddp/weights/best.pt}"
 RUN_NAME="$(basename "$(dirname "$(dirname "$MODEL_PATH")")")"
-OUT_DIR="${3:-/mnt/disk2/lhr/VSD/experiments/e1_rgb_only/${RUN_NAME}/${SPLIT}}"
+OUT_DIR="${3:-/mnt/disk2/lhr/VSD/results/${SPLIT}/${RUN_NAME}_${SPLIT}}"
 DEVICE="${4:-0}"
 CASE_TOPK="${5:-20}"
 CASE_MAX_IMAGES="${6:-0}"
@@ -24,7 +24,7 @@ IMGSZ="${11:-640}"
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
 
 CMD=(
-    /mnt/disk2/lhr/conda_envs/vsd/bin/python /mnt/disk2/lhr/VSD/scripts/e1_val_rgb_only.py
+    /mnt/disk2/lhr/conda_envs/vsd/bin/python /mnt/disk2/lhr/VSD/scripts/e2_val_ir_only.py
     --model "$MODEL_PATH"
     --split "$SPLIT"
     --imgsz "$IMGSZ"

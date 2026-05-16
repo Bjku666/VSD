@@ -1,10 +1,10 @@
 #!/bin/bash
 # 在 DroneVehicle resplit 数据集上训练 YOLO11n IR-only baseline。
 # 用法：
-#   ./scripts/e2_train_yolo11n_ir_only.sh [device] [batch] [run_name] [workers] [mode] [imgsz] [close_mosaic]
+#   ./scripts/train/e2_train_ir_only.sh [device] [batch] [run_name] [workers] [mode] [imgsz] [close_mosaic]
 # 示例：
-#   ./scripts/e2_train_yolo11n_ir_only.sh 0,1 96 e2_yolo11n_ir_only_640_ddp 16 bg
-#   ./scripts/e2_train_yolo11n_ir_only.sh 0 48 e2_yolo11n_ir_only_640_gpu0 12 fg
+#   ./scripts/train/e2_train_ir_only.sh 0,1 96 e2_yolo11n_ir_only_640_ddp 16 bg
+#   ./scripts/train/e2_train_ir_only.sh 0 48 e2_yolo11n_ir_only_640_gpu0 12 fg
 set -euo pipefail
 
 DEVICE="${1:-0,1}"
@@ -15,8 +15,8 @@ MODE="${5:-bg}"
 IMGSZ="${6:-640}"
 CLOSE_MOSAIC="${7:-10}"
 
-PROJECT_DIR="/mnt/disk2/lhr/VSD/experiments/e2_ir_only"
-LOG_DIR="/mnt/disk2/lhr/VSD/logs/e2_ir_only"
+PROJECT_DIR="/mnt/disk2/lhr/VSD/results/val"
+LOG_DIR="/mnt/disk2/lhr/VSD/results/val/logs"
 TS="$(date +%Y%m%d_%H%M%S)"
 LOG_FILE="${LOG_DIR}/${RUN_NAME}_gpu${DEVICE//,/+}_${TS}.log"
 
@@ -46,4 +46,5 @@ yolo detect train \
     device="${DEVICE}" \
     project="${PROJECT_DIR}" \
     name="${RUN_NAME}" \
-    close_mosaic="${CLOSE_MOSAIC}" 2>&1 | tee -a "${LOG_FILE}"
+    close_mosaic="${CLOSE_MOSAIC}" \
+    exist_ok=True 2>&1 | tee -a "${LOG_FILE}"
