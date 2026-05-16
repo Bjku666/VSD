@@ -53,6 +53,9 @@ runs/**/*
 
 # Keep documentation in results
 !results/README.md
+!results/val/
+!results/val/dark_small_experiment_leaderboard.csv
+!results/val/dark_small_experiment_leaderboard.md
 
 # Weights / checkpoints
 *.pt
@@ -70,3 +73,6 @@ weights/**/*
 *.tmp
 *.temp
 *.bak
+
+# Keep placeholder files that preserve directory structure
+!**/perface.md
