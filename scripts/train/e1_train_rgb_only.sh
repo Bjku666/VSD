@@ -24,7 +24,7 @@ mkdir -p "${LOG_DIR}"
 ln -sfn "${LOG_FILE}" "${LOG_DIR}/latest_train.log"
 
 if [[ "${MODE}" == "bg" ]]; then
-    nohup "$0" "${DEVICE}" "${BATCH}" "${RUN_NAME}" "${WORKERS}" "fg" >/dev/null 2>&1 &
+    nohup "$0" "${DEVICE}" "${BATCH}" "${RUN_NAME}" "${WORKERS}" "fg" "${IMGSZ}" "${CLOSE_MOSAIC}" >/dev/null 2>&1 &
     PID=$!
     echo "已后台启动训练，PID=${PID}"
     echo "日志：${LOG_DIR}/latest_train.log"

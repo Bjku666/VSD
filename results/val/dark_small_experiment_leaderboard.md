@@ -1,30 +1,28 @@
 # 暗弱小目标实验汇总表
 
-表格按实验编号顺序排列，便于对应完整实验流程；指标比较时仍优先关注 AP_dark-small、Recall_small、FP/image 和 mAP50-95。
+表格按实验编号顺序排列，便于对应完整实验流程；指标比较时仍优先关注 AP_dark-small、AP_tiny、AP_low-contrast、FP/image、FPPI_dark 和 mAP50-95。
 
-| 序号 | ID | 实验 | 状态 | mAP50 | mAP50-95 | AP_small | Recall_small | AP_dark | Recall_dark | AP_dark-small | FP/image |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | E1 | E1 RGB-only | done | 0.779699 | 0.556423 | 0.504289 | 0.672031 | 0.441884 | 0.664810 | 0.376499 |  |
-| 2 | E2 | E2 IR-only | done | 0.777607 | 0.529912 | 0.497403 | 0.716214 | 0.558856 | 0.763623 | 0.510692 |  |
-| 3 | E3 | E3 Late NMS | done | 0.774544 | 0.561468 | 0.519252 | 0.633062 | 0.522439 | 0.658037 | 0.472283 | 4.343771 |
-| 4 | E4 | E4 Late WBF | done | 0.779689 | 0.559216 | 0.513805 | 0.630920 | 0.532153 | 0.658568 | 0.465549 | 1.530293 |
-| 5 | E5 | E5 single-layer fusion | pending |  |  |  |  |  |  |  |  |
-| 6 | E6 | E6 multi-scale fusion | pending |  |  |  |  |  |  |  |  |
-| 7 | E7_1 | IR-only 768 | pending |  |  |  |  |  |  |  |  |
-| 8 | E7_2 | IR-only 960 | pending |  |  |  |  |  |  |  |  |
-| 9 | E7_3 | RGB-only 768 | pending |  |  |  |  |  |  |  |  |
-| 10 | E7_4 | WBF RGB:IR = 0.4:0.6 | pending |  |  |  |  |  |  |  |  |
-| 11 | E7_5 | WBF RGB:IR = 0.3:0.7 | pending |  |  |  |  |  |  |  |  |
-| 12 | E7_6 | WBF RGB:IR = 0.5:0.5 | pending |  |  |  |  |  |  |  |  |
-| 13 | E8_1 | IR-only 768 + close_mosaic=20 | pending |  |  |  |  |  |  |  |  |
-| 14 | E8_2 | IR-only 768 + dark-small resampling | pending |  |  |  |  |  |  |  |  |
-| 15 | E8_3 | IR-only 960 + dark-small resampling | pending |  |  |  |  |  |  |  |  |
-| 16 | E8_4 | Best WBF + dark-small resampled IR model | pending |  |  |  |  |  |  |  |  |
-| 17 | E9_1 | E5 fixed 640 | pending |  |  |  |  |  |  |  |  |
-| 18 | E9_2 | E5 fixed 768 | pending |  |  |  |  |  |  |  |  |
-| 19 | E9_3 | E6 fixed 640 | pending |  |  |  |  |  |  |  |  |
-| 20 | E9_4 | E6 fixed 768 | pending |  |  |  |  |  |  |  |  |
-| 21 | E9_5 | E6 fixed 768 + small resampling | pending |  |  |  |  |  |  |  |  |
-| 22 | E9_6 | E6 fixed 768 + dark-small resampling | pending |  |  |  |  |  |  |  |  |
-| 23 | E10_1 | 6-channel early fusion 640 | requires_model_support |  |  |  |  |  |  |  |  |
-| 24 | E10_2 | 6-channel early fusion 768 | requires_model_support |  |  |  |  |  |  |  |  |
+| 序号 | ID | 实验 | 状态 | mAP50 | mAP50-95 | AP_small | Recall_small | AP_dark | Recall_dark | AP_dark-small | AP_tiny | AP_low-contrast | AP_dark-small_obj | FP/image | FPPI_dark | FPPI_low-contrast | Params | GFLOPs | FPS | GPU MB |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | E1 | E1 RGB-only | done | 0.779699 | 0.556423 | 0.504289 | 0.672031 | 0.441884 | 0.664810 | 0.376499 |  |  |  |  |  |  |  |  |  |  |
+| 2 | E2 | E2 IR-only | done | 0.777607 | 0.529912 | 0.497403 | 0.716214 | 0.558856 | 0.763623 | 0.510692 |  |  |  |  |  |  |  |  |  |  |
+| 3 | E3 | E3 Late NMS | done | 0.774544 | 0.561468 | 0.519252 | 0.633062 | 0.522439 | 0.658037 | 0.472283 |  |  |  | 4.343771 |  |  |  |  |  |  |
+| 4 | E4 | E4 Late WBF | done | 0.779689 | 0.559216 | 0.513805 | 0.630920 | 0.532153 | 0.658568 | 0.465549 |  |  |  | 1.530293 |  |  |  |  |  |  |
+| 5 | E5 | E5 single-layer fusion | done | 0.835074 | 0.624957 | 0.574889 | 0.747868 | 0.571941 | 0.765925 | 0.504808 | 0.538322 | 0.624837 | 0.097728 | 1.584071 | 2.704545 | 1.771105 | 4087871.000000 | 9.666918 | 364.114561 | 770.347168 |
+| 6 | E6 | E6 multi-scale fusion | done | 0.842384 | 0.635715 | 0.586603 | 0.748135 | 0.585551 | 0.765116 | 0.512464 | 0.555855 | 0.637506 | 0.100028 | 1.469027 | 2.536932 | 1.612707 | 4153919.000000 | 10.199398 | 600.334543 | 1023.532227 |
+| 7 | E7_1 | IR-only 768 | done | 0.782938 | 0.534049 | 0.515117 | 0.719788 | 0.543391 | 0.760072 | 0.508743 |  |  |  |  |  |  |  |  |  |  |
+| 8 | E7_2 | IR-only 960 | done | 0.779310 | 0.540663 | 0.510145 | 0.713044 | 0.539814 | 0.711516 | 0.485782 |  |  |  |  |  |  |  |  |  |  |
+| 9 | E7_3 | RGB-only 768 | pending |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 10 | E7_4 | WBF RGB:IR = 0.4:0.6 | done | 0.777212 | 0.552678 | 0.510575 | 0.629341 | 0.538021 | 0.666092 | 0.474043 |  |  |  | 1.579986 |  |  |  |  |  |  |
+| 11 | E7_5 | WBF RGB:IR = 0.3:0.7 | done | 0.770082 | 0.542128 | 0.500713 | 0.625039 | 0.537305 | 0.670984 | 0.472421 |  |  |  | 1.592240 |  |  |  |  |  |  |
+| 12 | E7_6 | WBF RGB:IR = 0.5:0.5 | skipped_duplicate_E4 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 13 | E8_1 | IR-only 768 + close_mosaic=20 | pending |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 14 | E8_2 | IR-only 768 + dark-small resampling | done | 0.779179 | 0.530187 | 0.504052 | 0.726372 | 0.545013 | 0.775573 | 0.499926 |  |  |  |  |  |  |  |  |  |  |
+| 15 | E8_3 | IR-only 960 + dark-small resampling | paused_E8_2_not_better_than_E2 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 16 | E8_4 | Best WBF + dark-small resampled IR model | paused_E8_2_not_better_than_E2 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 17 | E9_1 | 6-channel early fusion 640 | requires_model_support |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 18 | E9_2 | 6-channel early fusion 768 | requires_model_support |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 19 | E10_1 | E5 768 | stopped_deprioritized |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 20 | E10_2 | E6 768 | pending |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 21 | E10_3 | E6 768 + small resampling | paused_until_E10_2_beats_E6_640 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 22 | E10_4 | E6 768 + dark-small resampling | paused_until_E10_2_beats_E6_640 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |

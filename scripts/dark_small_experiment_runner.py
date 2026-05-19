@@ -21,7 +21,7 @@ from typing import Any, Iterable
 import yaml
 
 
-DEFAULT_MANIFEST = Path("/mnt/disk2/lhr/VSD/configs/experiments/dark_small.yaml")
+DEFAULT_MANIFEST = Path("/mnt/disk2/lhr/VSD/configs/experiments/dark_small_next.yaml")
 
 
 @dataclass(frozen=True)
@@ -76,7 +76,7 @@ def _resolve_train_data(manifest: dict[str, Any], exp: dict[str, Any], work_dir:
         return str(base_yaml)
 
     reweight = exp["train_reweight"]
-    out_yaml = work_dir / "generated_data" / f"{exp['id']}_train_reweighted.yaml"
+    out_yaml = work_dir / "generated_data" / f"{str(exp['id']).lower()}_train_reweighted.yaml"
     _make_reweighted_yaml(
         base_yaml=Path(base_yaml),
         subset_yaml=Path(reweight["subset"]),
@@ -129,7 +129,7 @@ def _make_reweighted_yaml(base_yaml: Path, subset_yaml: Path, multiplier: int, o
     txt_path.write_text("\n".join(weighted) + "\n", encoding="utf-8")
 
     generated = dict(base)
-    generated["path"] = "/"
+    generated["path"] = str(base_root)
     generated["train"] = str(txt_path)
     generated["reweight_source"] = {
         "base_yaml": str(base_yaml),
@@ -403,9 +403,24 @@ def _collect_rows(manifest: dict[str, Any], include_baselines: bool = True) -> l
             "AP_dark",
             "Recall_dark",
             "AP_dark-small",
+            "Recall_dark-small",
+            "AP_dark-small_object",
+            "Recall_dark-small_object",
+            "AP_tiny",
+            "Recall_tiny",
+            "AP_low-contrast",
+            "Recall_low-contrast",
             "False Positives/image",
+            "FPPI_dark",
+            "FPPI_low-contrast",
         ):
             row[key] = _metric_value(metrics, key) if metrics else None
+        if metrics and isinstance(metrics.get("efficiency"), dict):
+            eff = metrics["efficiency"]
+            row["Params"] = _metric_value(eff, "params")
+            row["GFLOPs"] = _metric_value(eff, "gflops")
+            row["FPS"] = _metric_value(eff, "fps_validator")
+            row["GPU_mem_MB"] = _metric_value(eff, "gpu_memory_max_mb")
         if metrics and isinstance(metrics.get("per_class_AP"), dict):
             for cls_name, values in metrics["per_class_AP"].items():
                 if isinstance(values, dict):
@@ -452,12 +467,21 @@ def _write_md(path: Path, rows: list[dict[str, Any]]) -> None:
         "AP_dark",
         "Recall_dark",
         "AP_dark-small",
+        "AP_tiny",
+        "AP_low-contrast",
+        "AP_dark-small_obj",
         "FP/image",
+        "FPPI_dark",
+        "FPPI_low-contrast",
+        "Params",
+        "GFLOPs",
+        "FPS",
+        "GPU MB",
     ]
     lines = [
         "# 暗弱小目标实验汇总表",
         "",
-        "表格按实验编号顺序排列，便于对应完整实验流程；指标比较时仍优先关注 AP_dark-small、Recall_small、FP/image 和 mAP50-95。",
+        "表格按实验编号顺序排列，便于对应完整实验流程；指标比较时仍优先关注 AP_dark-small、AP_tiny、AP_low-contrast、FP/image、FPPI_dark 和 mAP50-95。",
         "",
         "| " + " | ".join(headers) + " |",
         "| " + " | ".join(["---"] * len(headers)) + " |",
@@ -478,7 +502,16 @@ def _write_md(path: Path, rows: list[dict[str, Any]]) -> None:
                     _format_float(row.get("AP_dark")),
                     _format_float(row.get("Recall_dark")),
                     _format_float(row.get("AP_dark-small")),
+                    _format_float(row.get("AP_tiny")),
+                    _format_float(row.get("AP_low-contrast")),
+                    _format_float(row.get("AP_dark-small_object")),
                     _format_float(row.get("False Positives/image")),
+                    _format_float(row.get("FPPI_dark")),
+                    _format_float(row.get("FPPI_low-contrast")),
+                    _format_float(row.get("Params")),
+                    _format_float(row.get("GFLOPs")),
+                    _format_float(row.get("FPS")),
+                    _format_float(row.get("GPU_mem_MB")),
                 ]
             )
             + " |"

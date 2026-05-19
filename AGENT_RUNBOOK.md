@@ -21,6 +21,52 @@
 4. E3
 5. E4
 
+## 后续阶段执行顺序
+
+### 第二阶段
+
+1. E5
+2. E6
+
+### 第三阶段
+
+1. E7_1
+2. E7_2
+3. E7_3
+4. E7_4
+5. E7_5
+6. E7_6
+
+### 第四阶段
+
+1. E8_1
+2. E8_2
+3. E8_3
+4. E8_4
+
+### 第五阶段
+
+1. E5/E6 补 FP/image、FPPI_dark、FPPI_low-contrast、AP_tiny、Recall_tiny、AP_low-contrast、object-level AP 和效率指标
+2. E5/E6 补 seed=1,2，输出 mean ± std
+3. E10_2：E6 768
+4. 暂停 E10_1、E10_3、E10_4，除非 E10_2 明确优于 E6 640
+
+### 第六阶段
+
+1. E11-1：E6 + P2 detection head，P2 只做检测头
+2. E12-1：E6 + residual gated fusion
+3. 若 FP/image 高于 E4 WBF 明显，优先 E22 hard negative mining
+4. 否则进入 E13 scale-aware / center-aware loss
+
+## 当前路线约束
+
+- E6 multi-scale fusion 是当前主线基线。
+- E2 保留为暗弱支撑基线；E4 保留为低误报 WBF 参考线。
+- 不继续搜索 WBF 权重。
+- 不继续 IR-only 960 + resampling。
+- 不启动 RT-DETR / YOLOv10 / YOLO11s 强模型对照。
+- 不运行 test set。
+
 ## 通过条件
 
 ### E0

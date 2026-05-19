@@ -124,9 +124,9 @@ Agent 执行约束：
 | E5 | 单层特征融合 | RGB+IR | 双骨干 + 单层 concat + 1x1 conv | `results/val/e5_feature_fusion_single/` |
 | E6 | 多尺度特征融合 | RGB+IR | 双骨干 + 多尺度融合 | `results/val/e6_feature_fusion_multiscale/` |
 
-重跑后才能恢复 E7/E8/E9 等批量实验。E7 的 WBF 权重搜索依赖 E1/E2 新训练出的 `best.pt`，不能再引用旧 `weights/trained`。
+重跑后才能恢复 E7/E8/E10 等批量实验。E7 的 WBF 权重搜索依赖 E1/E2 新训练出的 `best.pt`，不能再引用旧 `weights/trained`。
 
-## 5. 修正版总路线
+## 5. 总路线
 
 ```text
 阶段 0：协议固定
@@ -135,11 +135,11 @@ E0 数据审计、dark/small/dark-small/low-contrast/tiny 子集、指标定义
 阶段 1：强基线确认
 E1-E4 重新训练与评测
 E7 WBF 权重搜索、高分辨率 IR/RGB
-E10 6ch early fusion
+E9 6ch early fusion
 
-阶段 2：融合路线排错
-E9 E5/E6 输入、验证、权重加载、过拟合测试
-如果 E6 修好，再继续特征级融合；如果修不好，转 WBF+IR 主线
+阶段 2：融合对照与扩展
+E9 6ch early fusion 对照
+E10 E5/E6 高分辨率与重采样扩展
 
 阶段 3：小目标能力增强
 E8 mosaic / dark-small 重采样
@@ -168,10 +168,10 @@ E21 test set 最终评测
 2. `E1 / E2`：重新训练 RGB-only 和 IR-only 基线，生成后续 WBF 依赖的 `best.pt`。
 3. `E3 / E4`：重新评估 NMS/WBF 后融合。
 4. `E7-4 / E7-5 / E7-6`：基于新 E1/E2 权重做 WBF 权重搜索。
-5. `E9`：特征级融合排错，尽早判断 E6 底座是否可靠。
-6. `E10`：6ch early fusion，判断双骨干是否必要。
-7. `E7-1 / E7-2 / E7-3`：高分辨率单模态。
-8. `E8`：mosaic 和 dark-small 重采样。
+5. `E9`：6ch early fusion，作为 E6 双骨干路线的必要性对照。
+6. `E10`：E5/E6 高分辨率与重采样扩展。
+7. `E7-3`：补 RGB-only 768 单模态对照。
+8. `E8-1`：close_mosaic 对照；E8-3/E8-4 暂不优先。
 9. `E11-E14`：小目标、暗弱、低对比增强。
 10. `E15-E21`：论文级完整验证。
 
@@ -229,38 +229,25 @@ E0 不通过，不允许进入 E1-E21。
 
 验收标准：`AP_dark-small` 和 `Recall_small` 同时提升，`False Positives/image` 不大幅上升。
 
-### E9 特征级融合排错与重跑
+### E9 6 通道 Early Fusion 实验
 
-排查项：
-
-1. RGB/IR 图像是否严格配对。
-2. RGB/IR label 是否一致。
-3. E5/E6 训练输入和验证输入是否一致。
-4. 预训练权重是否正确加载到 RGB/IR 双分支。
-5. 极小训练集是否能过拟合。
-6. 验证脚本是否使用正确的 `mode=rgb_ir`。
-
-重跑项：
-
-- E9-1：E5 修正版，`imgsz=640`
-- E9-2：E5 修正版，`imgsz=768`
-- E9-3：E6 修正版，`imgsz=640`
-- E9-4：E6 修正版，`imgsz=768`
-- E9-5：E6 修正版 768 + small 重采样
-- E9-6：E6 修正版 768 + dark-small 重采样
-
-验收标准：修正版 E5/E6 至少接近 E1/E2；若 E6 仍低于 E4，则论文主线转向 IR 强基线 + WBF 后融合。
-
-### E10 6 通道 Early Fusion 实验
-
-- E10-1：YOLO11n 6ch early fusion，`imgsz=640`
-- E10-2：YOLO11n 6ch early fusion，`imgsz=768`
+- E9-1：YOLO11n 6ch early fusion，`imgsz=640`
+- E9-2：YOLO11n 6ch early fusion，`imgsz=768`
 
 判断规则：
 
 - 若 6ch 接近 E4，说明双骨干复杂融合必要性降低。
 - 若 6ch 低于 E4 但高于 E5/E6，说明当前双骨干实现仍需改进。
-- 若 6ch 低于修正版 E6，双骨干多尺度融合才有继续作为主线的理由。
+- 若 6ch 低于 E6，双骨干多尺度融合才有继续作为主线的理由。
+
+### E10 特征融合扩展实验
+
+- E10-1：E5，`imgsz=768`
+- E10-2：E6，`imgsz=768`
+- E10-3：E6，`imgsz=768` + small 重采样
+- E10-4：E6，`imgsz=768` + dark-small 重采样
+
+验收标准：E10 系列应在 `AP_dark-small` 或 `Recall_small` 上超过 E6 640，且 `mAP50-95` 不明显下降。
 
 ### E11 小目标检测头实验
 
@@ -321,7 +308,7 @@ E0 不通过，不允许进入 E1-E21。
 ### E17 Low-contrast 全模型评测
 
 - E17-1：构建 low-contrast 子集
-- E17-2：E2/E4/E10/E9-best/最终方法在 low-contrast 上评测
+- E17-2：E2/E4/E9/E10-best/最终方法在 low-contrast 上评测
 - E17-3：报告 `AP_low-contrast`、`Recall_low-contrast`、`FPPI_low-contrast`
 
 ### E18 多 seed 稳定性实验
@@ -330,8 +317,8 @@ E0 不通过，不允许进入 E1-E21。
 
 必须多 seed 的实验：
 
-- E6 修正版
-- E10 6ch
+- E6
+- E9 6ch
 - 最终方法
 
 建议多 seed 的实验：
@@ -382,8 +369,8 @@ test set 只用于最终锁定评估。建议最终只评估：
 
 - E2 IR-only best
 - E4 WBF best
-- E10 6ch best
-- E9 修正版 E6 best
+- E9 6ch best
+- E10 E6 best
 - 最终方法
 - 强模型 best
 
@@ -391,7 +378,7 @@ test set 锁定记录表必须单独保留，字段至少包括：模型名、va
 
 ### E22 Hard Negative Mining 实验
 
-- E22-1：收集 E2 / E4 / E9-best 在 dark / low-contrast 上的 FP。
+- E22-1：收集 E2 / E4 / E10-best 在 dark / low-contrast 上的 FP。
 - E22-2：按 thermal hotspot、lamp、edge、background vehicle-like 分类。
 - E22-3：hard negative 2x 采样。
 - E22-4：hard negative 3x 采样。
@@ -422,19 +409,19 @@ test set 锁定记录表必须单独保留，字段至少包括：模型名、va
 | E3 / E4 | E1 / E2 新权重 |
 | E7 WBF | E1 / E2 新 `best.pt` |
 | E8 重采样 | E0 的 `train_dark-small` 列表 |
-| E9 | E0 pair audit + E5/E6 代码检查 |
-| E10 | E0 RGB/IR 同步配置 |
-| E11 | E2 或 E9-best |
-| E12 | E9 修正版 E6 |
+| E9 | E0 RGB/IR 同步配置 |
+| E10 | E5/E6 原生训练与验证通过 |
+| E11 | E2 或 E10-best |
+| E12 | E6 或 E10-best |
 | E14 | E0 low-contrast 子集 |
-| E16 | E9 / E12 融合模型 |
+| E16 | E10 / E12 融合模型 |
 | E21 | E15 / E18 / E19 / E20 完成后 |
 
 ### 7.2 模型淘汰规则
 
 1. 若 `AP_dark-small` 提升小于 0.5 且 `FPPI_dark` 上升，则不进入下一阶段。
 2. 若 `Recall_small` 提升但 `FP/image` 大幅上升，则转入背景抑制分支，不作为主方法。
-3. 若 E6 修正版仍低于 E4 WBF 超过 3 个 `mAP50-95` 点，则不强行以 E6 为论文主线。
+3. 若 E6 仍低于 E4 WBF 超过 3 个 `mAP50-95` 点，则不强行以 E6 为论文主线。
 4. 若 6ch early fusion 接近 WBF，则双骨干创新必须证明效率或鲁棒性优势。
 5. 若 P2 只提升 Recall 但显著增加误报，则必须和 CEBS 或 hard negative mining 绑定。
 
@@ -442,15 +429,15 @@ test set 锁定记录表必须单独保留，字段至少包括：模型名、va
 
 主线 A：RGB-IR 双分支融合路线。
 
-- 启用条件：E9 修正版 E6 的 `AP_dark-small` ≥ E4 WBF，或 E9 修正版 E6 的 `Recall_small` 明显高于 E4 且 `FP/image` 不高于 E4 的 10%。
+- 启用条件：E6 的 `AP_dark-small` ≥ E4 WBF，或 E6 的 `Recall_small` 明显高于 E4 且 `FP/image` 不高于 E4 的 10%。
 
 主线 B：IR 强基线 + WBF 工程路线。
 
-- 启用条件：E9 修正版 E6 仍明显低于 E4 WBF；E10 6ch 也无法超过 E4；E2 / E7 IR 高分辨率在 dark-small 上最稳。
+- 启用条件：E6 仍明显低于 E4 WBF；E9 6ch 也无法超过 E4；E2 / E7 IR 高分辨率在 dark-small 上最稳。
 
 ### 7.4 hard negative mining 独立实验
 
-- E22-1：收集 E2 / E4 / E9-best 在 dark / low-contrast 上的 FP。
+- E22-1：收集 E2 / E4 / E10-best 在 dark / low-contrast 上的 FP。
 - E22-2：按 thermal hotspot、lamp、edge、background vehicle-like 分类。
 - E22-3：hard negative 2x 采样。
 - E22-4：hard negative 3x 采样。
@@ -463,8 +450,8 @@ test set 锁定记录表必须单独保留，字段至少包括：模型名、va
 | 阶段 | 实验 | 数量 | 是否 3 seed | 优先级 |
 | --- | --- | ---: | --- | --- |
 | 基线 | E1-E4 | 4 | E1/E2 建议 | 必须 |
-| 融合排错 | E9 | 6 | E6 修正版必须 | 必须 |
-| 6ch | E10 | 2 | 必须 | 必须 |
+| 融合对照 | E9 | 2 | 必须 | 必须 |
+| 融合扩展 | E10 | 4 | E6 关键项必须 | 必须 |
 | 高分辨率 | E7 | 6 | 可单 seed 初筛 | 高 |
 | 小目标 | E8 / E11 / E13 | 多项 | 关键模型 3 seed | 高 |
 | 创新模块 | E12 / E14 | 多项 | 最终候选 3 seed | 高 |
@@ -539,8 +526,8 @@ test set 锁定记录表必须单独保留，字段至少包括：模型名、va
 | --- | --- | --- | --- | --- | --- |
 | E2 IR best | dark recall 强 |  |  |  |  |
 | E4 WBF best | 误报低 |  |  |  |  |
-| E10 6ch best | 低成本融合 |  |  |  |  |
-| E9 / E12 best | 融合主线 |  |  |  |  |
+| E9 6ch best | 低成本融合 |  |  |  |  |
+| E10 / E12 best | 融合主线 |  |  |  |  |
 | Final | 最终方法 |  |  |  |  |
 
 ### 9.3 复现检查清单

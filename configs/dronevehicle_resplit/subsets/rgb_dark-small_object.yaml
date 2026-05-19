@@ -1,0 +1,8 @@
+path: /mnt/disk2/lhr/VSD/results/val/object_level_subsets/dark-small_object/rgb
+val: images/val
+names:
+  0: car
+  1: truck
+  2: bus
+  3: van
+  4: freight_car

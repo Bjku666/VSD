@@ -282,6 +282,19 @@ class E6DetectionTrainer(DetectionTrainer):
         self._ir_data = check_det_dataset(self.ir_data_yaml)
         return self._ir_data
 
+    @staticmethod
+    def _weights_include_ir_branch(weights: str | nn.Module) -> bool:
+        if isinstance(weights, nn.Module):
+            return any("ir_backbone" in key for key in weights.state_dict())
+        try:
+            ckpt = torch.load(str(weights), map_location="cpu", weights_only=False)
+        except Exception:
+            return False
+        model = ckpt.get("model") if isinstance(ckpt, dict) else ckpt
+        if not hasattr(model, "state_dict"):
+            return False
+        return any("ir_backbone" in key for key in model.state_dict())
+
     def get_model(self, cfg: str | dict | None = None, weights: str | nn.Module | None = None, verbose: bool = True):
         model = E6MultiScaleFusionModel(
             cfg=cfg or "yolo11n.yaml",
@@ -291,8 +304,10 @@ class E6DetectionTrainer(DetectionTrainer):
             fusion_mode=self.fusion_mode,
         )
         if weights is not None:
+            has_trained_ir_branch = self._weights_include_ir_branch(weights)
             model.load(weights)
-            model.initialize_ir_from_rgb()
+            if not has_trained_ir_branch:
+                model.initialize_ir_from_rgb()
         return model
 
     def build_dataset(self, img_path: str, mode: str = "train", batch: int | None = None):

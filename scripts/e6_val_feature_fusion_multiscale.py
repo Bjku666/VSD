@@ -10,10 +10,13 @@ import os
 import shutil
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, Dict
 
+import torch
 import yaml
+from ultralytics.utils.torch_utils import get_flops
 
 scripts_dir = os.environ.get("VSD_E6_SCRIPTS_DIR", "")
 if scripts_dir and scripts_dir not in sys.path:
@@ -179,6 +182,76 @@ def _rename_per_class_ap_keys(metrics: Dict[str, Any], class_names: Dict[int, st
     return out
 
 
+def _extract_confusion_error_metrics(validator: Any) -> Dict[str, Any]:
+    cm = getattr(validator, "confusion_matrix", None)
+    matrix = getattr(cm, "matrix", None)
+    nc = int(getattr(cm, "nc", 0) or 0)
+    n_images = int(getattr(validator, "seen", 0) or 0)
+    if matrix is None or nc <= 0:
+        return {"image_count": n_images}
+
+    bg_fp = _to_float(matrix[:nc, nc].sum())
+    bg_fn = _to_float(matrix[nc, :nc].sum())
+    diag = _to_float(matrix[:nc, :nc].diagonal().sum())
+    offdiag = _to_float(matrix[:nc, :nc].sum()) - diag
+    gt_total = _to_float(matrix[:, :nc].sum())
+    return {
+        "image_count": n_images,
+        "false_positives": bg_fp,
+        "false_positives_per_image": bg_fp / n_images if n_images > 0 else 0.0,
+        "background_false_positive": bg_fp,
+        "background_false_negative": bg_fn,
+        "confusion_offdiag": offdiag,
+        "background_confusion_rate": (bg_fp + bg_fn) / gt_total if gt_total > 0 else 0.0,
+    }
+
+
+def _extract_speed_metrics(validator: Any, elapsed_s: float, image_count: int) -> Dict[str, Any]:
+    speed = getattr(validator, "speed", {}) or {}
+    preprocess = _to_float(speed.get("preprocess", 0.0))
+    inference = _to_float(speed.get("inference", 0.0))
+    loss = _to_float(speed.get("loss", 0.0))
+    postprocess = _to_float(speed.get("postprocess", 0.0))
+    total_ms = preprocess + inference + loss + postprocess
+    return {
+        "speed_ms_per_image": {
+            "preprocess": preprocess,
+            "inference": inference,
+            "loss": loss,
+            "postprocess": postprocess,
+            "total": total_ms,
+        },
+        "fps_validator": 1000.0 / total_ms if total_ms > 0 else 0.0,
+        "fps_wall": image_count / elapsed_s if elapsed_s > 0 and image_count > 0 else 0.0,
+        "elapsed_seconds": elapsed_s,
+    }
+
+
+def _profile_model(model: Any, imgsz: int) -> Dict[str, Any]:
+    params = sum(p.numel() for p in model.parameters())
+    trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    try:
+        flops = float(get_flops(model, imgsz=imgsz))
+    except Exception:
+        flops = 0.0
+    if flops <= 0.0:
+        try:
+            from copy import deepcopy
+            import thop
+
+            p = next(model.parameters())
+            ch = 6 if getattr(model, "fusion_mode", "") == "rgb_ir" else 3
+            im = torch.empty((1, ch, int(imgsz), int(imgsz)), device=p.device)
+            flops = float(thop.profile(deepcopy(model), inputs=[im], verbose=False)[0]) / 1e9 * 2.0
+        except Exception:
+            flops = 0.0
+    return {
+        "params": int(params),
+        "trainable_params": int(trainable),
+        "gflops": flops,
+    }
+
+
 def _evaluate_once(
     *,
     weights: str,
@@ -194,6 +267,7 @@ def _evaluate_once(
     name: str,
     plots: bool,
     exist_ok: bool,
+    include_efficiency: bool = False,
 ) -> Dict[str, Any]:
     eval_data_yaml = str(Path(data_yaml))
     temp_yaml_path: str | None = None
@@ -221,7 +295,9 @@ def _evaluate_once(
         "project": str(project),
         "name": name,
         "resume": False,
-        "plots": bool(plots),
+        # Ultralytics updates confusion_matrix only when plots=True. Keep it enabled
+        # for all subset validations so FP/image and FPPI_* use the same matcher.
+        "plots": True,
         "exist_ok": bool(exist_ok),
     }
 
@@ -232,12 +308,31 @@ def _evaluate_once(
         trainer.setup_model()
         trainer.model = trainer.model.to(trainer.device).float().eval()
 
+        profile = _profile_model(trainer.model, int(imgsz)) if include_efficiency else {}
+        if torch.cuda.is_available() and str(device).lower() != "cpu":
+            torch.cuda.reset_peak_memory_stats(trainer.device)
+
         split_key = split if split in trainer.data else "val"
         trainer.test_loader = trainer.get_dataloader(trainer.data[split_key], batch_size=int(batch), rank=-1, mode="val")
         trainer.validator = trainer.get_validator()
+        started = time.perf_counter()
         metrics = trainer.validator(model=trainer.model)
+        elapsed_s = time.perf_counter() - started
         metrics_source = getattr(trainer.validator, "metrics", None)
-        return _extract_metrics(metrics_source if metrics_source is not None else metrics)
+        out = _extract_metrics(metrics_source if metrics_source is not None else metrics)
+        error_metrics = _extract_confusion_error_metrics(trainer.validator)
+        out["error_metrics"] = error_metrics
+        if include_efficiency:
+            image_count = int(error_metrics.get("image_count", 0) or getattr(trainer.validator, "seen", 0) or 0)
+            max_mem_mb = 0.0
+            if torch.cuda.is_available() and str(device).lower() != "cpu":
+                max_mem_mb = torch.cuda.max_memory_allocated(trainer.device) / (1024.0 ** 2)
+            out["efficiency"] = {
+                **profile,
+                **_extract_speed_metrics(trainer.validator, elapsed_s, image_count),
+                "gpu_memory_max_mb": max_mem_mb,
+            }
+        return out
     finally:
         if temp_yaml_path is not None:
             Path(temp_yaml_path).unlink(missing_ok=True)
@@ -290,6 +385,16 @@ def parse_args() -> argparse.Namespace:
         default="/mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/subsets/rgb_dark-small.yaml",
     )
     parser.add_argument(
+        "--data-tiny-rgb",
+        type=str,
+        default="/mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/subsets/rgb_tiny.yaml",
+    )
+    parser.add_argument(
+        "--data-low-contrast-rgb",
+        type=str,
+        default="/mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/subsets/rgb_low-contrast.yaml",
+    )
+    parser.add_argument(
         "--data-small-ir",
         type=str,
         default="/mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/subsets/ir_small.yaml",
@@ -303,6 +408,16 @@ def parse_args() -> argparse.Namespace:
         "--data-dark-small-ir",
         type=str,
         default="/mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/subsets/ir_dark-small.yaml",
+    )
+    parser.add_argument(
+        "--data-tiny-ir",
+        type=str,
+        default="/mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/subsets/ir_tiny.yaml",
+    )
+    parser.add_argument(
+        "--data-low-contrast-ir",
+        type=str,
+        default="/mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/subsets/ir_low-contrast.yaml",
     )
     parser.add_argument("--imgsz", type=int, default=640)
     parser.add_argument("--batch", type=int, default=32)
@@ -326,17 +441,23 @@ def main() -> None:
     ultra_name_small = f"{args.split}_small"
     ultra_name_dark = f"{args.split}_dark"
     ultra_name_dark_small = f"{args.split}_dark-small"
+    ultra_name_tiny = f"{args.split}_tiny"
+    ultra_name_low_contrast = f"{args.split}_low-contrast"
 
     if args.mode == "rgb":
         data_yaml = args.data_rgb
         data_small = args.data_small_rgb
         data_dark = args.data_dark_rgb
         data_dark_small = args.data_dark_small_rgb
+        data_tiny = args.data_tiny_rgb
+        data_low_contrast = args.data_low_contrast_rgb
     elif args.mode == "ir":
         data_yaml = args.data_ir
         data_small = args.data_small_ir
         data_dark = args.data_dark_ir
         data_dark_small = args.data_dark_small_ir
+        data_tiny = args.data_tiny_ir
+        data_low_contrast = args.data_low_contrast_ir
     else:
         data_yaml = args.data_rgb_ir
         generated_dir = out_dir / "_generated_eval_data"
@@ -361,6 +482,20 @@ def main() -> None:
             split=args.split,
             out_yaml=generated_dir / f"{args.split}_dark-small_rgb_ir.yaml",
         )
+        data_tiny = _write_rgb_ir_subset_yaml(
+            base_rgb_ir_yaml=args.data_rgb_ir,
+            rgb_subset_yaml=args.data_tiny_rgb,
+            ir_subset_yaml=args.data_tiny_ir,
+            split=args.split,
+            out_yaml=generated_dir / f"{args.split}_tiny_rgb_ir.yaml",
+        )
+        data_low_contrast = _write_rgb_ir_subset_yaml(
+            base_rgb_ir_yaml=args.data_rgb_ir,
+            rgb_subset_yaml=args.data_low_contrast_rgb,
+            ir_subset_yaml=args.data_low_contrast_ir,
+            split=args.split,
+            out_yaml=generated_dir / f"{args.split}_low-contrast_rgb_ir.yaml",
+        )
 
     standard = _evaluate_once(
         weights=args.weights,
@@ -376,6 +511,7 @@ def main() -> None:
         name=ultra_name_full,
         plots=True,
         exist_ok=bool(args.exist_ok),
+        include_efficiency=True,
     )
     small_metrics = _evaluate_once(
         weights=args.weights,
@@ -422,6 +558,36 @@ def main() -> None:
         plots=False,
         exist_ok=True,
     )
+    tiny_metrics = _evaluate_once(
+        weights=args.weights,
+        mode=args.mode,
+        data_yaml=data_tiny,
+        data_ir_yaml=args.data_ir,
+        split=args.split,
+        imgsz=args.imgsz,
+        batch=args.batch,
+        workers=args.workers,
+        device=args.device,
+        project=ultra_project,
+        name=ultra_name_tiny,
+        plots=False,
+        exist_ok=True,
+    )
+    low_contrast_metrics = _evaluate_once(
+        weights=args.weights,
+        mode=args.mode,
+        data_yaml=data_low_contrast,
+        data_ir_yaml=args.data_ir,
+        split=args.split,
+        imgsz=args.imgsz,
+        batch=args.batch,
+        workers=args.workers,
+        device=args.device,
+        project=ultra_project,
+        name=ultra_name_low_contrast,
+        plots=False,
+        exist_ok=True,
+    )
 
     class_names = _load_class_names(data_yaml)
     standard = _rename_per_class_ap_keys(standard, class_names)
@@ -436,6 +602,15 @@ def main() -> None:
         "AP_dark": dark_metrics["mAP50-95"],
         "Recall_dark": dark_metrics["Recall"],
         "AP_dark-small": dark_small_metrics["mAP50-95"],
+        "Recall_dark-small": dark_small_metrics["Recall"],
+        "AP_tiny": tiny_metrics["mAP50-95"],
+        "Recall_tiny": tiny_metrics["Recall"],
+        "AP_low-contrast": low_contrast_metrics["mAP50-95"],
+        "Recall_low-contrast": low_contrast_metrics["Recall"],
+        "False Positives/image": standard.get("error_metrics", {}).get("false_positives_per_image", 0.0),
+        "FPPI_dark": dark_metrics.get("error_metrics", {}).get("false_positives_per_image", 0.0),
+        "FPPI_low-contrast": low_contrast_metrics.get("error_metrics", {}).get("false_positives_per_image", 0.0),
+        "efficiency": standard.get("efficiency", {}),
     }
 
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -451,6 +626,8 @@ def main() -> None:
             "small": str(Path(data_small)),
             "dark": str(Path(data_dark)),
             "dark_small": str(Path(data_dark_small)),
+            "tiny": str(Path(data_tiny)),
+            "low_contrast": str(Path(data_low_contrast)),
         },
         "standard_metrics": standard,
         "custom_metrics": {
@@ -459,7 +636,20 @@ def main() -> None:
             "AP_dark": required["AP_dark"],
             "Recall_dark": required["Recall_dark"],
             "AP_dark-small": required["AP_dark-small"],
+            "Recall_dark-small": required["Recall_dark-small"],
+            "AP_tiny": required["AP_tiny"],
+            "Recall_tiny": required["Recall_tiny"],
+            "AP_low-contrast": required["AP_low-contrast"],
+            "Recall_low-contrast": required["Recall_low-contrast"],
         },
+        "error_metrics": {
+            "full": standard.get("error_metrics", {}),
+            "dark": dark_metrics.get("error_metrics", {}),
+            "dark_small": dark_small_metrics.get("error_metrics", {}),
+            "tiny": tiny_metrics.get("error_metrics", {}),
+            "low_contrast": low_contrast_metrics.get("error_metrics", {}),
+        },
+        "efficiency": required.get("efficiency", {}),
         "required_metrics": required,
         "ultralytics_project_dir": str(ultra_project),
         "ultralytics_run_name": ultra_name_full,
@@ -468,6 +658,8 @@ def main() -> None:
             "small": ultra_name_small,
             "dark": ultra_name_dark,
             "dark_small": ultra_name_dark_small,
+            "tiny": ultra_name_tiny,
+            "low_contrast": ultra_name_low_contrast,
         },
     }
 
@@ -493,6 +685,20 @@ def main() -> None:
         writer.writerow(["AP_dark", f"{required['AP_dark']:.6f}"])
         writer.writerow(["Recall_dark", f"{required['Recall_dark']:.6f}"])
         writer.writerow(["AP_dark-small", f"{required['AP_dark-small']:.6f}"])
+        writer.writerow(["Recall_dark-small", f"{required['Recall_dark-small']:.6f}"])
+        writer.writerow(["AP_tiny", f"{required['AP_tiny']:.6f}"])
+        writer.writerow(["Recall_tiny", f"{required['Recall_tiny']:.6f}"])
+        writer.writerow(["AP_low-contrast", f"{required['AP_low-contrast']:.6f}"])
+        writer.writerow(["Recall_low-contrast", f"{required['Recall_low-contrast']:.6f}"])
+        writer.writerow(["False Positives/image", f"{required['False Positives/image']:.6f}"])
+        writer.writerow(["FPPI_dark", f"{required['FPPI_dark']:.6f}"])
+        writer.writerow(["FPPI_low-contrast", f"{required['FPPI_low-contrast']:.6f}"])
+        for metric_name, metric_value in required.get("efficiency", {}).items():
+            if isinstance(metric_value, dict):
+                for sub_name, sub_value in metric_value.items():
+                    writer.writerow([f"efficiency/{metric_name}/{sub_name}", f"{_to_float(sub_value):.6f}"])
+            else:
+                writer.writerow([f"efficiency/{metric_name}", f"{_to_float(metric_value):.6f}"])
         writer.writerow([])
         writer.writerow(["class", "AP50", "AP50-95"])
         for cls_name, vals in required["per_class_AP"].items():
@@ -515,6 +721,19 @@ def main() -> None:
         f"- AP_dark: {required['AP_dark']:.6f}",
         f"- Recall_dark: {required['Recall_dark']:.6f}",
         f"- AP_dark-small: {required['AP_dark-small']:.6f}",
+        f"- Recall_dark-small: {required['Recall_dark-small']:.6f}",
+        f"- AP_tiny: {required['AP_tiny']:.6f}",
+        f"- Recall_tiny: {required['Recall_tiny']:.6f}",
+        f"- AP_low-contrast: {required['AP_low-contrast']:.6f}",
+        f"- Recall_low-contrast: {required['Recall_low-contrast']:.6f}",
+        f"- False Positives/image: {required['False Positives/image']:.6f}",
+        f"- FPPI_dark: {required['FPPI_dark']:.6f}",
+        f"- FPPI_low-contrast: {required['FPPI_low-contrast']:.6f}",
+        "",
+        f"- Params: {int(required.get('efficiency', {}).get('params', 0))}",
+        f"- GFLOPs: {required.get('efficiency', {}).get('gflops', 0.0):.6f}",
+        f"- FPS_validator: {required.get('efficiency', {}).get('fps_validator', 0.0):.6f}",
+        f"- GPU memory max MB: {required.get('efficiency', {}).get('gpu_memory_max_mb', 0.0):.6f}",
         "",
     ]
     with open(metrics_md, "w", encoding="utf-8") as f:

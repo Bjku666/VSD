@@ -11,7 +11,7 @@
 - `e1_*` 到 `e6_*` 的 Python 文件：历史单实验训练、验证和融合评估逻辑。
 - `render_key_result_figures.py`：重建关键结果图。
 - `cleanup_result_artifacts.py`：清理冗余结果产物。
-- `train/`：所有 shell 启动脚本，包括 E1/E2 训练、E3/E4 后融合验证、E5/E6 融合训练、E7/E8/E9 队列和 VisDrone baseline。
+- `train/`：所有 shell 启动脚本，包括 E1/E2 训练、E3/E4 后融合验证、E5/E6 融合训练、E7/E8/E10 队列和 VisDrone baseline。
 
 ## 规范
 
