@@ -128,41 +128,18 @@ Agent 执行约束：
 
 ## 5. 总路线
 
-```text
-阶段 0：协议固定
-E0 数据审计、dark/small/dark-small/low-contrast/tiny 子集、指标定义
+| 大阶段 | 阶段名称 | 实验范围 | 当前状态 | 结论 |
+| --- | --- | --- | --- | --- |
+| S0 | 数据协议阶段 | E0 | done | DroneVehicle-DarkSmall 协议作为基础 |
+| S1 | 基础基线阶段 | E1-E4 | done | E2 是暗弱支撑基线，E4 是低误报参考线 |
+| S2 | 融合主线确认阶段 | E5-E6 | done | E6 是当前主线基线 |
+| S3 | 高分辨率/后融合/重采样初筛 | E7、E8、E10_2 | done / paused | 高分辨率、WBF 权重、IR 重采样暂不作为主线 |
+| S4 | 小目标头/门控/loss 初筛 | E11_1、E12_1、E13_2、E13_3 | done / partial | 都能降 FP，但 AP_dark-small 低于 E6 |
+| S5 | 当前阶段：诊断优化阶段 | E20_0、E18_1/E18_2、E12_1b、E13_loss_check、E22_0 | next | 分析 E6 与 E12/E13 差异，寻找保 AP 降 FP 的改法 |
+| S6 | 方法二次优化阶段 | E12_1b 正式版、E13_2b/E13_3b、E22_2、E14 | not started | 形成最终方法候选 |
+| S7 | 论文完整验证阶段 | E15、E16、E18 full、E19、E20 full、E21、E24 | not started | 多 seed、效率、强模型、test set、复现冻结 |
 
-阶段 1：强基线确认
-E1-E4 重新训练与评测
-E7 WBF 权重搜索、高分辨率 IR/RGB
-E9 6ch early fusion
-
-阶段 2：融合对照与扩展
-E9 6ch early fusion 对照
-E10 E5/E6 高分辨率与重采样扩展
-
-阶段 3：小目标能力增强
-E8 mosaic / dark-small 重采样
-E11 P2 小目标头
-E13 tiny-aware loss / sample weight
-
-阶段 4：暗弱与低对比增强
-E14 RGB/IR 增强、背景抑制
-E17 low-contrast 全模型评测
-
-阶段 5：跨模态创新
-E12 暗弱感知门控融合
-E16 配准扰动鲁棒性
-
-阶段 6：论文级完整验证
-E15 强模型对照
-E18 多 seed 稳定性
-E19 参数/FLOPs/FPS/显存
-E20 per-class、tiny-size、失败案例分类
-E21 test set 最终评测
-```
-
-推荐优先级：
+历史推荐优先级（当前执行以 S5 当前阶段表为准）：
 
 1. `E0`：先固定 DroneVehicle-DarkSmall 协议，生成审计和子集统计。
 2. `E1 / E2`：重新训练 RGB-only 和 IR-only 基线，生成后续 WBF 依赖的 `best.pt`。
@@ -174,6 +151,26 @@ E21 test set 最终评测
 8. `E8-1`：close_mosaic 对照；E8-3/E8-4 暂不优先。
 9. `E11-E14`：小目标、暗弱、低对比增强。
 10. `E15-E21`：论文级完整验证。
+
+
+## 5.1 当前阶段重排（2026-05-21）
+
+当前定位：S4 已完成，S5 刚开始。基础协议、基线、E6 主线、高分辨率初筛、P2 初筛、门控初筛和 loss 初筛都已经完成；现在进入 E6 主线后的误报-召回诊断优化阶段。
+
+S5 的核心问题不是继续证明 E6 强，而是解决：E6 的 AP_dark-small 最强但 FPPI_dark 偏高，E12/E13 降低 FPPI_dark 但 AP_dark-small 下降。因此当前目标是保住 E6 的 AP_dark-small，同时继承 E12/E13 的低误报能力。
+
+| 当前任务 | 编号 | 是否立即执行 | 说明 |
+| --- | --- | --- | --- |
+| E6/E12/E13 差异诊断 | E20_0 | 是 | 找出 E12/E13 压掉了哪些 TP，消除了哪些 FP |
+| E6 多 seed | E18_1 / E18_2 | 是 | 验证 E6 是否稳定最优 |
+| 弱残差门控 | E12_1b | 是 | 继承 E12 降 FP，但保留 E6 AP_dark-small |
+| loss 实现检查 | E13_loss_check | 是 | 检查 E13_2/E13_3 是否真正不同 |
+| hard negative taxonomy | E22_0 | 是 | 分类 E6/E12/E13 的误报类型 |
+| scale+center loss | E13_4 | 暂缓 | 不建议 GPU 空闲就立刻作为主线跑 |
+| P2 普通扩展 | E11_2/E11_3 | 暂停 | E11_1 已低于 E6 |
+| 普通门控扩展 | E12_2/E12_3/E12_4 | 暂停 | 先做 E12_1b 弱门控 |
+| E6 768 重采样扩展 | E10_3/E10_4 | 暂停 | E10_2 没超过 E6 640 |
+| 强模型/test | E15/E21 | 禁止 | 还没到论文最终验证阶段 |
 
 ## 6. 后续实验编号
 
@@ -378,11 +375,12 @@ test set 锁定记录表必须单独保留，字段至少包括：模型名、va
 
 ### E22 Hard Negative Mining 实验
 
-- E22-1：收集 E2 / E4 / E10-best 在 dark / low-contrast 上的 FP。
-- E22-2：按 thermal hotspot、lamp、edge、background vehicle-like 分类。
-- E22-3：hard negative 2x 采样。
-- E22-4：hard negative 3x 采样。
-- E22-5：hard negative + CEBS。
+- E22_0：收集 E6 / E12_1 / E13_2 在 dark / low-contrast 上的 FP，构建 hard negative taxonomy 和 list，暂不训练。
+- E22_1：hard negative list 构建与去重。
+- E22_2：E6 + hard negative 2x 采样。
+- E22_3：E12_1b + hard negative 2x 采样。
+- E22_4：仅在 2x 不牺牲 recall 时考虑 3x 采样。
+- E22_5：hard negative + CEBS。
 
 重点观察 `FPPI_dark`、`FPPI_low-contrast`、`AP_dark-small`、`Recall_dark-small`。
 

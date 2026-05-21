@@ -198,19 +198,23 @@ experiments:
   name: e10_1_e5_768
   result_dir: /mnt/disk2/lhr/VSD/results/val/e10_1_e5_768_val
   status: stopped_deprioritized
-  note: E10_1 was stopped after the route changed to E6-first. The output
-    directory contains only startup artifacts (args.yaml, labels.jpg) plus an
-    empty weights directory; no results or metrics are valid.
+  note: E10_1 was stopped after the route changed to E6-first. The output directory
+    contains only startup artifacts (args.yaml, labels.jpg) plus an empty weights
+    directory; no results or metrics are valid.
 - id: E10_2
   stage: E10
   kind: e6
   title: E6 768
   mode: rgb_ir
   imgsz: 768
+  batch: 32
+  workers: 32
+  device: 0,1
   project: /mnt/disk2/lhr/VSD/results/val
   name: e10_2_e6_768
   result_dir: /mnt/disk2/lhr/VSD/results/val/e10_2_e6_768_val
-  status: pending
+  metrics: /mnt/disk2/lhr/VSD/results/val/e10_2_e6_768_val/required_metrics.json
+  status: done
 - id: E10_3
   stage: E10
   kind: e6
@@ -237,3 +241,143 @@ experiments:
   train_reweight:
     subset: /mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/subsets/rgb_ir_dark-small.yaml
     multiplier: 3
+- id: E11_1
+  stage: E11
+  kind: e11
+  title: E6 + P2 detection head
+  mode: rgb_ir
+  imgsz: 640
+  batch: 32
+  workers: 32
+  device: 0,1
+  model: /mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt
+  project: /mnt/disk2/lhr/VSD/results/val
+  name: e11_1_e6_p2_head
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e11_1_e6_p2_head_val
+  metrics: /mnt/disk2/lhr/VSD/results/val/e11_1_e6_p2_head_val/required_metrics.json
+  status: done
+- id: E11_2
+  stage: E11
+  kind: e11
+  title: E6 + P2 head + P3/P4/P5 original fusion
+  mode: rgb_ir
+  imgsz: 640
+  batch: 32
+  workers: 32
+  device: 0,1
+  model: /mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt
+  project: /mnt/disk2/lhr/VSD/results/val
+  name: e11_2_e6_p2_p345_fusion
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e11_2_e6_p2_p345_fusion_val
+  status: paused_E11_1_not_better_than_E6
+- id: E11_3
+  stage: E11
+  kind: e11
+  title: E6 + P2 head + 768
+  mode: rgb_ir
+  imgsz: 768
+  batch: 32
+  workers: 32
+  device: 0,1
+  model: /mnt/disk2/lhr/VSD/results/val/e10_2_e6_768/weights/best.pt
+  project: /mnt/disk2/lhr/VSD/results/val
+  name: e11_3_e6_p2_head_768
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e11_3_e6_p2_head_768_val
+  status: paused_E11_1_not_better_than_E6
+- id: E12_1
+  stage: E12
+  kind: e12
+  title: E6 + residual gated fusion
+  mode: rgb_ir
+  imgsz: 640
+  batch: 32
+  workers: 32
+  device: 0,1
+  model: /mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt
+  project: /mnt/disk2/lhr/VSD/results/val
+  name: e12_1_residual_gated_fusion
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e12_1_residual_gated_fusion_val
+  status: done
+  metrics: /mnt/disk2/lhr/VSD/results/val/e12_1_residual_gated_fusion_val/required_metrics.json
+- id: E12_2
+  stage: E12
+  kind: planned
+  title: E6 + spatial gate
+  status: paused_E12_1_not_better_darksmall
+- id: E12_3
+  stage: E12
+  kind: planned
+  title: E6 + dark-aware reliability gate
+  status: paused_E12_1_not_better_darksmall
+- id: E12_4
+  stage: E12
+  kind: planned
+  title: E6 + residual gated fusion + P2 head
+  status: paused_E12_1_not_better_darksmall
+- id: E13_1
+  stage: E13
+  kind: planned
+  title: E6 baseline loss control
+  status: covered_by_E6_baseline
+- id: E13_2
+  stage: E13
+  kind: e13
+  title: E6 + scale-aware loss
+  mode: rgb_ir
+  loss: scale-aware
+  small_px: 32.0
+  scale_alpha: 1.0
+  scale_gamma: 0.5
+  scale_max_gain: 3.0
+  imgsz: 640
+  batch: 32
+  workers: 32
+  device: 0,1
+  model: /mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt
+  project: /mnt/disk2/lhr/VSD/results/val
+  name: e13_2_e6_scale_aware_loss
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e13_2_e6_scale_aware_loss_val
+  metrics: /mnt/disk2/lhr/VSD/results/val/e13_2_e6_scale_aware_loss_val/required_metrics.json
+  status: done
+  log: /mnt/disk2/lhr/VSD/results/val/logs/e13_2_scale_aware_loss_20260520.log
+- id: E13_3
+  stage: E13
+  kind: e13
+  title: E6 + center-aware loss
+  mode: rgb_ir
+  loss: center-aware
+  center_alpha: 0.25
+  center_max: 4.0
+  imgsz: 640
+  batch: 32
+  workers: 32
+  device: 0,1
+  model: /mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt
+  project: /mnt/disk2/lhr/VSD/results/val
+  name: e13_3_e6_center_aware_loss
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e13_3_e6_center_aware_loss_val
+  metrics: /mnt/disk2/lhr/VSD/results/val/e13_3_e6_center_aware_loss_val/required_metrics.json
+  status: done
+  log: /mnt/disk2/lhr/VSD/results/val/logs/e13_3_center_aware_loss_20260520.log
+- id: E13_4
+  stage: E13
+  kind: e13
+  title: E6 + scale-aware + center-aware loss
+  mode: rgb_ir
+  loss: scale-center-aware
+  small_px: 32.0
+  scale_alpha: 1.0
+  scale_gamma: 0.5
+  scale_max_gain: 3.0
+  center_alpha: 0.25
+  center_max: 4.0
+  imgsz: 640
+  batch: 32
+  workers: 32
+  device: 0,1
+  model: /mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt
+  project: /mnt/disk2/lhr/VSD/results/val
+  name: e13_4_e6_scale_center_aware_loss
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e13_4_e6_scale_center_aware_loss_val
+  status: pending_gpu_busy
+  note: Ready to run after GPUs are free; both GPUs are currently occupied by an external Shawalt/litetrack job.

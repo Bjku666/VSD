@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import os
 import json
 import re
 import shlex
@@ -49,15 +50,29 @@ def _run(argv: list[str], dry_run: bool) -> None:
     print(printable)
     if dry_run:
         return
-    subprocess.run(argv, check=True)
+    env = os.environ.copy()
+    scripts_dir = str(Path(__file__).resolve().parent)
+    pythonpath = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = scripts_dir if not pythonpath else f"{scripts_dir}{os.pathsep}{pythonpath}"
+    env.setdefault("VSD_E5_SCRIPTS_DIR", scripts_dir)
+    env.setdefault("VSD_E6_SCRIPTS_DIR", scripts_dir)
+    subprocess.run(argv, check=True, env=env)
 
 
 def _batch_for(defaults: dict[str, Any], exp: dict[str, Any], family: str) -> int:
     if "batch" in exp:
         return int(exp["batch"])
     imgsz = str(exp.get("imgsz", 640))
-    key = "batch_fusion" if family in {"e5", "e6"} else "batch_single"
+    key = "batch_fusion" if family in {"e5", "e6", "e11", "e12", "e13"} else "batch_single"
     return int(defaults.get(key, {}).get(imgsz, 16))
+
+
+def _workers_for(defaults: dict[str, Any], exp: dict[str, Any]) -> int:
+    return int(exp.get("workers", defaults.get("workers", 8)))
+
+
+def _device_for(defaults: dict[str, Any], exp: dict[str, Any]) -> str:
+    return str(exp.get("device", defaults.get("device", "0")))
 
 
 def _resolve_train_data(manifest: dict[str, Any], exp: dict[str, Any], work_dir: Path) -> str:
@@ -66,7 +81,7 @@ def _resolve_train_data(manifest: dict[str, Any], exp: dict[str, Any], work_dir:
     modality = str(exp.get("modality", ""))
     if kind == "single":
         base_yaml = data[modality]
-    elif kind in {"e5", "e6"}:
+    elif kind in {"e5", "e6", "e11", "e12", "e13"}:
         mode = str(exp.get("mode", "rgb_ir"))
         base_yaml = data["rgb_ir"] if mode == "rgb_ir" else data[mode]
     else:
@@ -158,8 +173,8 @@ def _single_steps(manifest: dict[str, Any], exp: dict[str, Any], work_dir: Path)
         f"imgsz={imgsz}",
         f"epochs={int(defaults['epochs'])}",
         f"batch={_batch_for(defaults, exp, 'single')}",
-        f"workers={int(defaults['workers'])}",
-        f"device={defaults['device']}",
+        f"workers={_workers_for(defaults, exp)}",
+        f"device={_device_for(defaults, exp)}",
         f"project={exp['project']}",
         f"name={exp['name']}",
         f"seed={int(defaults['seed'])}",
@@ -177,7 +192,7 @@ def _single_steps(manifest: dict[str, Any], exp: dict[str, Any], work_dir: Path)
         "--imgsz",
         str(imgsz),
         "--device",
-        str(defaults["device"]),
+        _device_for(defaults, exp),
         "--case-topk",
         str(defaults["case"]["topk"]),
         "--case-max-images",
@@ -208,7 +223,7 @@ def _late_fusion_steps(manifest: dict[str, Any], exp: dict[str, Any]) -> list[Co
         "--imgsz",
         str(int(exp.get("imgsz", 640))),
         "--device",
-        str(defaults["device"]),
+        _device_for(defaults, exp),
         "--batch",
         str(int(exp.get("batch", 16))),
         "--out-dir",
@@ -229,8 +244,21 @@ def _late_fusion_steps(manifest: dict[str, Any], exp: dict[str, Any]) -> list[Co
 def _fusion_model_steps(manifest: dict[str, Any], exp: dict[str, Any], work_dir: Path) -> list[CommandStep]:
     defaults = manifest["defaults"]
     kind = str(exp["kind"])
-    train_script = "e5_train_feature_fusion_single.py" if kind == "e5" else "e6_train_feature_fusion_multiscale.py"
-    val_script = "e5_val_feature_fusion_single.py" if kind == "e5" else "e6_val_feature_fusion_multiscale.py"
+    if kind == "e5":
+        train_script = "e5_train_feature_fusion_single.py"
+        val_script = "e5_val_feature_fusion_single.py"
+    elif kind == "e11":
+        train_script = "e11_train_p2_head.py"
+        val_script = "e11_val_p2_head.py"
+    elif kind == "e12":
+        train_script = "e12_train_gated_fusion.py"
+        val_script = "e12_val_gated_fusion.py"
+    elif kind == "e13":
+        train_script = "e13_train_tiny_aware_loss.py"
+        val_script = "e13_val_tiny_aware_loss.py"
+    else:
+        train_script = "e6_train_feature_fusion_multiscale.py"
+        val_script = "e6_val_feature_fusion_multiscale.py"
     data_yaml = _resolve_train_data(manifest, exp, work_dir)
     imgsz = int(exp["imgsz"])
     weights = str(Path(exp["project"]) / exp["name"] / "weights" / "best.pt")
@@ -241,7 +269,7 @@ def _fusion_model_steps(manifest: dict[str, Any], exp: dict[str, Any], work_dir:
         "--mode",
         str(exp.get("mode", "rgb_ir")),
         "--model",
-        str(defaults["yolo_model"]),
+        str(exp.get("model", defaults["yolo_model"])),
         "--data-rgb-ir",
         data_yaml,
         "--data-ir",
@@ -253,9 +281,9 @@ def _fusion_model_steps(manifest: dict[str, Any], exp: dict[str, Any], work_dir:
         "--batch",
         str(_batch_for(defaults, exp, kind)),
         "--workers",
-        str(int(defaults["workers"])),
+        str(_workers_for(defaults, exp)),
         "--device",
-        str(defaults["device"]),
+        _device_for(defaults, exp),
         "--project",
         str(exp["project"]),
         "--name",
@@ -266,6 +294,18 @@ def _fusion_model_steps(manifest: dict[str, Any], exp: dict[str, Any], work_dir:
         str(int(exp.get("close_mosaic", 10))),
         "--exist-ok",
     ]
+    if kind == "e13":
+        train.extend(["--loss", str(exp.get("loss", "scale-aware"))])
+        for exp_key, cli_key in (
+            ("small_px", "--small-px"),
+            ("scale_alpha", "--scale-alpha"),
+            ("scale_gamma", "--scale-gamma"),
+            ("scale_max_gain", "--scale-max-gain"),
+            ("center_alpha", "--center-alpha"),
+            ("center_max", "--center-max"),
+        ):
+            if exp_key in exp:
+                train.extend([cli_key, str(exp[exp_key])])
     val = [
         defaults["python"],
         str(Path(defaults["root"]) / "scripts" / val_script),
@@ -280,7 +320,7 @@ def _fusion_model_steps(manifest: dict[str, Any], exp: dict[str, Any], work_dir:
         "--batch",
         str(_batch_for(defaults, exp, kind)),
         "--device",
-        str(defaults["device"]),
+        _device_for(defaults, exp),
         "--out-dir",
         str(exp["result_dir"]),
     ]
@@ -293,7 +333,7 @@ def _steps_for(manifest: dict[str, Any], exp: dict[str, Any], work_dir: Path) ->
         return _single_steps(manifest, exp, work_dir)
     if kind == "late_fusion":
         return _late_fusion_steps(manifest, exp)
-    if kind in {"e5", "e6"}:
+    if kind in {"e5", "e6", "e11", "e12", "e13"}:
         return _fusion_model_steps(manifest, exp, work_dir)
     if kind == "planned":
         return []
