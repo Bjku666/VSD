@@ -46,7 +46,7 @@
 | E13_3b-light | E13_3b-light | 已完成，不作为候选 | FP/image 与 FPPI_dark 升高，object-level AP_dark-small 低于 E6 |
 | background_far hard negative 1.5x | E22_2a | blocked | 必须先有 train-split hard negative source；不能直接用 val FP 训练 |
 | background_far hard negative 2x | E22_2b | blocked | 同上；不允许 3x/5x，不允许 class_confusion |
-| CEBS alpha=0.05/0.10 | E14_1/E14_2 | 等待 GPU/部分完成 | E14_1 已完成训练并等待 GPU1 补验证；E14_2 已完成 image-level 并等待 GPU0 object-level |
+| CEBS alpha=0.05/0.10 | E14_1/E14_2 | 已完成，不作为候选 | E14_1 image-level 有提升但 object-level AP_dark-small 低于 E6；E14_2 降 FP 但 image/object dark-small AP 均低于 E6 |
 | CEBS 组合候选 | E14_3/E14_4 | 待 E13_3b-light 后执行 | 若 CEBS 不超过 light/HN 候选，不作为主方法硬用 |
 | candidate freeze | E24_0 | 待最佳候选有效后执行 | 冻结配置、权重路径、metrics、protocol、commit、训练和验证参数 |
 | scale+center loss 后续扩展 | E13_4b/E13_4c | 暂停 | E13_4b/E13_4c 误报明显升高，不作为当前最佳方向 |
@@ -77,7 +77,7 @@
 - E22_1 只生成 hard negative list，不直接训练。
 - E22_2a/E22_2b 只使用 background_far hard negative 轻量采样，不使用 class_confusion/all 3x/5x；训练源必须来自 train split，不允许直接用 val FP 泄漏到训练。
 - 运行 E13 相关脚本时若出现 `CXXABI_1.3.15` / `cv2` 导入错误，先设置 `LD_LIBRARY_PATH=/mnt/disk2/lhr/conda_envs/vsd/lib`。
-- 当前实时日志入口：E14_1 原训练日志为 `tail -f results/val/logs/e14_1_e6_cebs_a005_gpu1_20260524_2126.log`，补验证等待日志为 `tail -f results/val/logs/e14_1_e6_cebs_a005_manual_val_gpu1_20260525_1231.log`；E14_2 原训练/验证日志为 `tail -f results/val/logs/e14_2_e6_cebs_a010_gpu0_20260524_2228.log`，object-level 等待日志为 `tail -f results/val/logs/e14_2_e6_cebs_a010_object_eval_gpu0_20260525_1231.log`；E13_3b-light 日志为 `results/val/logs/e13_3b_light_target_center_loss_gpu0_20260524_143843.log`，已到 `VALIDATE_EXIT 0`。
+- 当前实时日志入口：E14_1 原训练日志为 `results/val/logs/e14_1_e6_cebs_a005_gpu1_20260524_2126.log`，补验证日志为 `results/val/logs/e14_1_e6_cebs_a005_manual_val_gpu0_20260525_1605.log`，object-level 日志为 `results/val/logs/e14_1_e6_cebs_a005_object_eval_gpu0_20260525_1626.log`；E14_2 原训练/验证日志为 `results/val/logs/e14_2_e6_cebs_a010_gpu0_20260524_2228.log`，object-level 日志为 `results/val/logs/e14_2_e6_cebs_a010_object_eval_gpu0_20260525_1231.log`；E13_3b-light 日志为 `results/val/logs/e13_3b_light_target_center_loss_gpu0_20260524_143843.log`，已到 `VALIDATE_EXIT 0`。
 - E23 object-level evaluator 已支持 `--validator e14`；E14 object-level 评估需传入 CEBS 参数，当前 E14_2 已排队：`scripts/train/e14_2_object_wait_gpu0.sh`。
 
 ## 通过条件

@@ -1,0 +1,13 @@
+path: /mnt/disk2/lhr/VSD
+train: /mnt/disk2/lhr/VSD/configs/generated/s6_hard_negative/background_far_train_images.txt
+val: /mnt/disk2/lhr/VSD/configs/generated/s6_hard_negative/background_far_train_images.txt
+names:
+  0: car
+  1: truck
+  2: bus
+  3: van
+  4: freight_car
+source: /mnt/disk2/lhr/VSD/results/val/e22_1_train_hard_negative_lists/train_allowed_background_far.txt
+unique_images: 7108
+allowed_taxonomy: background_far
+source_split: train

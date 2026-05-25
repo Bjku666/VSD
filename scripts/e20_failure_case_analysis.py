@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""E20_0: compare E6, E12_1 and E13_2 val detections case-by-case.
+"""E20_0: compare E6, E12_1 and E13_2 split detections case-by-case.
 
-The script exports validation predictions when needed, matches predictions to
+The script exports split predictions when needed, matches predictions to
 ground truth at a fixed IoU threshold, and reports:
 
 - GT boxes detected by E6 but missed by E12_1 or E13_2.
@@ -63,6 +63,30 @@ def _load_yaml(path: Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError(f"Invalid yaml: {path}")
     return data
+
+
+def _write_yaml(path: Path, data: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as f:
+        yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)
+
+
+def _eval_yaml_for_split(base_yaml: Path, split: str, out_dir: Path, name: str) -> Path:
+    if split == "val":
+        return base_yaml
+    cfg = dict(_load_yaml(base_yaml))
+    if split not in cfg:
+        raise ValueError(f"{base_yaml} does not define split {split}")
+    cfg["val"] = cfg[split]
+    for key in ("rgb", "ir"):
+        node = cfg.get(key)
+        if isinstance(node, dict) and split in node:
+            node = dict(node)
+            node["val"] = node[split]
+            cfg[key] = node
+    out = out_dir / "_generated_eval_data" / f"{name}_{split}_as_val.yaml"
+    _write_yaml(out, cfg)
+    return out
 
 
 def _split_path(data_yaml: Path, split: str) -> Path:
@@ -183,11 +207,14 @@ def _export_predictions(args: argparse.Namespace, model_id: str, spec: dict[str,
     if args.force_predict and (run_project / run_name).exists():
         shutil.rmtree(run_project / run_name)
 
+    eval_data_rgb_ir = _eval_yaml_for_split(Path(args.data_rgb_ir), args.split, Path(args.out_dir), "rgb_ir")
+    eval_data_ir = _eval_yaml_for_split(Path(args.data_ir), args.split, Path(args.out_dir), "ir")
+
     overrides = {
         "task": "detect",
         "mode": "train",
         "model": str(Path(spec["weights"])),
-        "data": str(Path(args.data_rgb_ir)),
+        "data": str(eval_data_rgb_ir),
         "epochs": 1,
         "imgsz": int(args.imgsz),
         "batch": int(args.batch),
@@ -206,12 +233,12 @@ def _export_predictions(args: argparse.Namespace, model_id: str, spec: dict[str,
 
     trainer = spec["trainer"](overrides=overrides)
     trainer.set_fusion_mode("rgb_ir")
-    trainer.set_ir_data(str(Path(args.data_ir)))
+    trainer.set_ir_data(str(eval_data_ir))
     if model_id == "E13_2" and hasattr(trainer, "set_loss_config"):
         trainer.set_loss_config(loss_mode="scale-aware")
     trainer.setup_model()
     trainer.model = trainer.model.to(trainer.device).float().eval()
-    split_key = args.split if args.split in trainer.data else "val"
+    split_key = "val"
     trainer.test_loader = trainer.get_dataloader(trainer.data[split_key], batch_size=int(args.batch), rank=-1, mode="val")
     trainer.validator = trainer.get_validator()
     trainer.validator(model=trainer.model)
@@ -273,7 +300,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("--data-rgb-ir", default="/mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/dronevehicle_resplit_rgb_ir.yaml")
     parser.add_argument("--data-ir", default="/mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/dronevehicle_resplit_ir.yaml")
-    parser.add_argument("--split", default="val", choices=["val"])
+    parser.add_argument("--split", default="val", choices=["train", "val"])
     parser.add_argument("--out-dir", default="/mnt/disk2/lhr/VSD/results/val/e20_0_error_delta_analysis")
     parser.add_argument("--imgsz", type=int, default=640)
     parser.add_argument("--batch", type=int, default=16)

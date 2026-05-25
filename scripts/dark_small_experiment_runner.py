@@ -104,7 +104,7 @@ def _resolve_train_data(manifest: dict[str, Any], exp: dict[str, Any], work_dir:
     _make_reweighted_yaml(
         base_yaml=Path(base_yaml),
         subset_yaml=Path(reweight["subset"]),
-        multiplier=int(reweight.get("multiplier", 2)),
+        multiplier=float(reweight.get("multiplier", 2)),
         out_yaml=out_yaml,
     )
     return str(out_yaml)
@@ -131,9 +131,9 @@ def _iter_images_from_entry(root: Path, entry: Any) -> list[Path]:
     return sorted(set(images))
 
 
-def _make_reweighted_yaml(base_yaml: Path, subset_yaml: Path, multiplier: int, out_yaml: Path) -> None:
-    if multiplier < 2:
-        raise ValueError("train_reweight.multiplier 必须大于等于 2")
+def _make_reweighted_yaml(base_yaml: Path, subset_yaml: Path, multiplier: float, out_yaml: Path) -> None:
+    if multiplier <= 1.0:
+        raise ValueError("train_reweight.multiplier 必须大于 1")
     base = _load_yaml(base_yaml)
     subset = _load_yaml(subset_yaml)
     base_root = Path(base.get("path", "."))
@@ -145,8 +145,13 @@ def _make_reweighted_yaml(base_yaml: Path, subset_yaml: Path, multiplier: int, o
 
     weighted = [str(p) for p in train_images]
     boosted = [str(p) for p in train_images if p.stem in subset_stems]
-    for _ in range(multiplier - 1):
+    whole_extra = int(multiplier) - 1
+    frac_extra = multiplier - int(multiplier)
+    for _ in range(whole_extra):
         weighted.extend(boosted)
+    if frac_extra > 0 and boosted:
+        take = int(round(len(boosted) * frac_extra))
+        weighted.extend(boosted[:take])
 
     txt_path = out_yaml.with_suffix(".train.txt")
     out_yaml.parent.mkdir(parents=True, exist_ok=True)
@@ -155,14 +160,49 @@ def _make_reweighted_yaml(base_yaml: Path, subset_yaml: Path, multiplier: int, o
     generated = dict(base)
     generated["path"] = str(base_root)
     generated["train"] = str(txt_path)
+    ir_train_images = None
+    ir_weighted = None
+    if isinstance(base.get("ir"), dict):
+        ir_cfg = dict(base["ir"])
+        ir_root = Path(ir_cfg.get("path", "."))
+        ir_train_images = _iter_images_from_entry(ir_root, ir_cfg["train"])
+        ir_by_stem = {p.stem: p for p in ir_train_images}
+        missing_ir = [Path(p).stem for p in weighted if Path(p).stem not in ir_by_stem]
+        if missing_ir:
+            raise RuntimeError(
+                f"IR train list missing {len(missing_ir)} RGB pairs, first missing stem: {missing_ir[0]}"
+            )
+        ir_weighted = [str(ir_by_stem[Path(p).stem]) for p in weighted]
+        ir_txt_path = out_yaml.with_name(f"{out_yaml.stem}.ir_train.txt")
+        ir_txt_path.write_text("\n".join(ir_weighted) + "\n", encoding="utf-8")
+
+        ir_cfg["path"] = str(ir_root)
+        ir_cfg["train"] = str(ir_txt_path)
+        generated["ir"] = ir_cfg
+
+    if isinstance(base.get("rgb"), dict):
+        rgb_cfg = dict(base["rgb"])
+        rgb_cfg["path"] = str(Path(rgb_cfg.get("path", base_root)))
+        rgb_cfg["train"] = str(txt_path)
+        generated["rgb"] = rgb_cfg
+
     generated["reweight_source"] = {
         "base_yaml": str(base_yaml),
         "subset_yaml": str(subset_yaml),
         "multiplier": multiplier,
         "base_train_images": len(train_images),
         "boosted_images": len(boosted),
+        "fractional_extra_images": int(round(len(boosted) * frac_extra)) if frac_extra > 0 else 0,
         "weighted_train_entries": len(weighted),
     }
+    if ir_train_images is not None and ir_weighted is not None:
+        generated["reweight_source"].update(
+            {
+                "ir_base_train_images": len(ir_train_images),
+                "ir_weighted_train_entries": len(ir_weighted),
+                "paired_modalities": True,
+            }
+        )
     _write_yaml(out_yaml, generated)
 
 
@@ -467,6 +507,10 @@ def _collect_rows(manifest: dict[str, Any], include_baselines: bool = True) -> l
     for src in sources:
         metric_path = _metric_path_for(src)
         metrics = _read_metric_bundle(metric_path) if metric_path else None
+        object_metric_path = Path(src["object_metrics"]) if src.get("object_metrics") else None
+        object_metrics = _read_metrics(object_metric_path) if object_metric_path else None
+        if metrics is not None and isinstance(object_metrics, dict):
+            metrics.update(object_metrics)
         configured_status = src.get("status")
         row = {
             "id": src.get("id", ""),

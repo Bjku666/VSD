@@ -593,18 +593,44 @@ experiments:
   note: aux_weight=0.03; target scope means tiny OR dark-small OR low-contrast foreground, auxiliary only. Validation completed, but FP/image and FPPI_dark increased; object-level dark-small AP is below E6.
 - id: E22_2a
   stage: S6
-  kind: planned
-  title: E13_3b-light + background_far hard negative 1.5x
-  result_dir: /mnt/disk2/lhr/VSD/results/val/e22_2a_e13_3b_light_background_far_hn15_val
-  status: blocked_until_seed2_rerun_train_hn
-  note: Only background_far hard negatives are allowed; no class_confusion and no 3x/5x. Current E22_1 source is val FP, so prepare train-split HN before training.
+  kind: e6
+  title: E6 + train background_far hard negative 1.5x
+  mode: rgb_ir
+  imgsz: 640
+  batch: 48
+  workers: 8
+  device: '1'
+  seed: 0
+  model: /mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt
+  project: /mnt/disk2/lhr/VSD/results/val
+  name: e22_2a_e6_background_far_hn15
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e22_2a_e6_background_far_hn15_val
+  metrics: /mnt/disk2/lhr/VSD/results/val/e22_2a_e6_background_far_hn15_val/required_metrics.json
+  train_reweight:
+    subset: /mnt/disk2/lhr/VSD/configs/generated/s6_hard_negative/background_far_train.yaml
+    multiplier: 1.5
+  status: running_gpu1_batch48
+  note: Only train-split background_far hard negatives are used; no class_confusion, no localization_error, no all-HN, no 3x/5x. Restarted on GPU1 with batch=48 and workers=8 after deleting the partial GPU0 batch=16 run.
 - id: E22_2b
   stage: S6
-  kind: planned
-  title: E13_3b-light + background_far hard negative 2x
-  result_dir: /mnt/disk2/lhr/VSD/results/val/e22_2b_e13_3b_light_background_far_hn2_val
-  status: blocked_until_seed2_rerun_train_hn
-  note: Only background_far hard negatives are allowed; no class_confusion and no 3x/5x. Current E22_1 source is val FP, so prepare train-split HN before training.
+  kind: e6
+  title: E6 + train background_far hard negative 2x
+  mode: rgb_ir
+  imgsz: 640
+  batch: 16
+  workers: 4
+  device: '1'
+  seed: 0
+  model: /mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt
+  project: /mnt/disk2/lhr/VSD/results/val
+  name: e22_2b_e6_background_far_hn2
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e22_2b_e6_background_far_hn2_val
+  metrics: /mnt/disk2/lhr/VSD/results/val/e22_2b_e6_background_far_hn2_val/required_metrics.json
+  train_reweight:
+    subset: /mnt/disk2/lhr/VSD/configs/generated/s6_hard_negative/background_far_train.yaml
+    multiplier: 2.0
+  status: queued_gpu1
+  note: Only train-split background_far hard negatives are used; no class_confusion, no localization_error, no all-HN, no 3x/5x.
 - id: E14_1
   stage: S6
   kind: e14
@@ -620,14 +646,15 @@ experiments:
   name: e14_1_e6_cebs_a005
   result_dir: /mnt/disk2/lhr/VSD/results/val/e14_1_e6_cebs_a005_val
   metrics: /mnt/disk2/lhr/VSD/results/val/e14_1_e6_cebs_a005_val/required_metrics.json
+  object_metrics: /mnt/disk2/lhr/VSD/results/val/e23_e14_1_cebs_a005_object_level/required_metrics.json
   cebs_alpha: 0.05
   dark_threshold: 33.50320816040039
   low_contrast_threshold: 0.08425217866897583
   contrast_kernel: 7
   suppression_temperature: 0.08
-  status: train_done_val_wait_gpu1
-  log: /mnt/disk2/lhr/VSD/results/val/logs/e14_1_e6_cebs_a005_manual_val_gpu1_20260525_1231.log
-  note: Contrast-aware and error-guided background suppression; training finished, original chained validation failed before metrics export, manual validation is queued on GPU1.
+  status: done_not_candidate
+  log: /mnt/disk2/lhr/VSD/results/val/logs/e14_1_e6_cebs_a005_object_eval_gpu0_20260525_1626.log
+  note: Contrast-aware and error-guided background suppression; image-level AP_dark-small improved and FP dropped, but object-level AP_dark-small is below E6, so not selected as candidate.
 - id: E14_2
   stage: S6
   kind: e14
@@ -643,23 +670,24 @@ experiments:
   name: e14_2_e6_cebs_a010
   result_dir: /mnt/disk2/lhr/VSD/results/val/e14_2_e6_cebs_a010_val
   metrics: /mnt/disk2/lhr/VSD/results/val/e14_2_e6_cebs_a010_val/required_metrics.json
+  object_metrics: /mnt/disk2/lhr/VSD/results/val/e23_e14_2_cebs_a010_object_level/required_metrics.json
   cebs_alpha: 0.10
   dark_threshold: 33.50320816040039
   low_contrast_threshold: 0.08425217866897583
   contrast_kernel: 7
   suppression_temperature: 0.08
-  status: image_done_object_wait_gpu0
+  status: done_not_candidate
   log: /mnt/disk2/lhr/VSD/results/val/logs/e14_2_e6_cebs_a010_object_eval_gpu0_20260525_1231.log
-  note: Contrast-aware and error-guided background suppression; image-level validation done with lower FP but lower AP_dark-small than E6/E13_3b, object-level evaluation queued on GPU0.
+  note: Contrast-aware and error-guided background suppression; lower FP than E6, but image-level and object-level AP_dark-small are below E6/E13_3b, so not selected as candidate.
 - id: E14_3
   stage: S6
   kind: planned
   title: E13_3b-light + CEBS alpha=0.05
   result_dir: /mnt/disk2/lhr/VSD/results/val/e14_3_e13_3b_light_cebs_a005_val
-  status: planned_after_E13_3b_light
+  status: skipped_e13_3b_light_and_cebs_not_candidate
 - id: E14_4
   stage: S6
   kind: planned
   title: E13_3b-light + CEBS + background_far HN 1.5x
   result_dir: /mnt/disk2/lhr/VSD/results/val/e14_4_e13_3b_light_cebs_hn15_val
-  status: planned_after_E14_3_E22_2a
+  status: skipped_e13_3b_light_and_cebs_not_candidate
