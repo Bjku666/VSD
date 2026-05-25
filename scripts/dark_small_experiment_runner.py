@@ -467,13 +467,14 @@ def _collect_rows(manifest: dict[str, Any], include_baselines: bool = True) -> l
     for src in sources:
         metric_path = _metric_path_for(src)
         metrics = _read_metric_bundle(metric_path) if metric_path else None
+        configured_status = src.get("status")
         row = {
             "id": src.get("id", ""),
             "name": src.get("title") or src.get("name", ""),
             "stage": src.get("stage", "baseline"),
             "kind": src.get("kind", "baseline"),
             "metrics_path": str(metric_path) if metric_path else "",
-            "status": "done" if metrics else src.get("status", "pending"),
+            "status": configured_status if configured_status else ("done" if metrics else "pending"),
         }
         for key in (
             "mAP50",
