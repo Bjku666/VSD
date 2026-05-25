@@ -38,12 +38,24 @@ run_or_print() {
   fi
 }
 
+format_cmd() {
+  printf '%q ' "$@"
+}
+
 run_background() {
   local exp_id="$1"
   shift
   local log_file="${LOG_DIR}/${exp_id}_$(date +%Y%m%d_%H%M%S).log"
   if [[ "${RUN_MODE}" == "run" ]]; then
-    setsid "$@" > "${log_file}" 2>&1 < /dev/null &
+    {
+      echo "===== $(date '+%F %T') start ${exp_id} ====="
+      echo "cwd=${ROOT}"
+      echo "log_file=${log_file}"
+      printf 'command='
+      format_cmd "$@"
+      printf '\n\n'
+    } > "${log_file}"
+    setsid env PYTHONUNBUFFERED=1 "$@" >> "${log_file}" 2>&1 < /dev/null &
     echo "${exp_id} PID=$!"
     echo "${exp_id} log=${log_file}"
   else
@@ -98,6 +110,13 @@ e12_1() {
       --dry-run
 }
 
+e12_1b() {
+  echo "# E12_1b: E6 + weak residual gated fusion"
+  echo "# Implemented through the manifest with gate_lambda=0.1."
+  run_background "e12_1b_weak_residual_gated_fusion" \
+    "${PY}" "${RUNNER}" run E12_1b --work-dir "${ROOT}"
+}
+
 e13_2() {
   echo "# E13_2: E6 + scale-aware loss"
   echo "# Implemented. This uses the manifest values: device=${DEVICE}, batch=32, workers=${WORKERS}."
@@ -120,7 +139,7 @@ e22_3() {
 
 usage() {
   cat <<'EOF'
-Usage: scripts/train/run_e6_mainline_demos.sh {E10_2|E11_1|E12_1|E13_2|E22_3|all}
+Usage: scripts/train/run_e6_mainline_demos.sh {E10_2|E11_1|E12_1|E12_1b|E13_2|E22_3|all}
 
 Environment:
   RUN_MODE=dry-run|run   default: dry-run
@@ -128,7 +147,7 @@ Environment:
   BATCH_768=32           default: 32
   WORKERS=32             default: 32
 
-E10_2, E11_1, E12_1, and E13_2 are implemented end to end. E22_3 remains a dry-run demo until hard-negative mining is implemented.
+E10_2, E11_1, E12_1, E12_1b, and E13_2 are implemented end to end. E22_3 remains a dry-run demo until hard-negative mining is implemented.
 EOF
 }
 
@@ -136,8 +155,9 @@ case "${1:-}" in
   E10_2|e10_2) e10_2 ;;
   E11_1|e11_1) e11_1 ;;
   E12_1|e12_1) e12_1 ;;
+  E12_1b|e12_1b) e12_1b ;;
   E13_2|e13_2) e13_2 ;;
   E22_3|e22_3) e22_3 ;;
-  all) e10_2; echo; e11_1; echo; e12_1; echo; e13_2; echo; e22_3 ;;
+  all) e10_2; echo; e11_1; echo; e12_1; echo; e12_1b; echo; e13_2; echo; e22_3 ;;
   *) usage; exit 2 ;;
 esac

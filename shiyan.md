@@ -172,6 +172,14 @@ S5 的核心问题不是继续证明 E6 强，而是解决：E6 的 AP_dark-smal
 | E6 768 重采样扩展 | E10_3/E10_4 | 暂停 | E10_2 没超过 E6 640 |
 | 强模型/test | E15/E21 | 禁止 | 还没到论文最终验证阶段 |
 
+### S5 执行记录（2026-05-22）
+
+- E20_0 已完成，输出目录：`results/val/e20_0_error_delta_analysis/`。诊断口径为 val split、`conf=0.25`、匹配 `IoU=0.50`。E6：TP=21011、FP=2753、FN=1451；E12_1：TP=20827、FP=2519、FN=1635；E13_2：TP=20813、FP=2441、FN=1649。E12_1 消除 E6 FP 660 个但漏掉 E6 TP 399 个；E13_2 消除 E6 FP 677 个但漏掉 E6 TP 407 个。
+- E13_loss_check 已完成，输出目录：`results/val/e13_loss_check/`。E13_2/E13_3 关键指标完全一致；当前 loss 代码虽然有 scale-aware 和 center-aware 分支，但辅助项作用于所有 foreground boxes，不只作用于 tiny/dark-small，因此 E13_4 仍不作为当前主线。
+- E22_0 已完成，输出目录：`results/val/e22_0_hard_negative_taxonomy/`。FP taxonomy：`background_far=3393`、`class_confusion=3127`、`localization_error=918`、`duplicate_or_conf_threshold=223`、`near_object_background=52`。
+- E18_1/E18_2 已启动后台顺序队列，日志：`results/val/logs/e18_e6_multiseed_queue_20260522.log`。当前先跑 E18_1 seed=1，完成训练和统一验证后自动进入 E18_2 seed=2。
+- E12_1b 暂不启动；按依赖需等待 E18_1/E18_2 完成并确认 E6 稳定性后，再运行弱残差门控。
+
 ## 6. 后续实验编号
 
 ### E0 协议固定与子集构建

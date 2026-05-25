@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 import json
 import os
 import subprocess
@@ -17,10 +18,17 @@ if scripts_dir and scripts_dir not in sys.path:
 from e12_gated_fusion_core import E12DetectionTrainer
 
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(line_buffering=True)
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(line_buffering=True)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("--mode", default="rgb_ir", choices=["rgb", "ir", "rgb_ir"])
     parser.add_argument("--gate", default="residual", choices=["residual", "channel", "spatial", "dark-aware"])
+    parser.add_argument("--gate-lambda", type=float, default=1.0, help="Scale for the gated residual branch; E12_1b uses 0.1.")
     parser.add_argument("--model", default="/mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt")
     parser.add_argument("--data-rgb", default="/mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/dronevehicle_resplit_rgb.yaml")
     parser.add_argument("--data-rgb-ir", default="/mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/dronevehicle_resplit_rgb_ir.yaml")
@@ -71,15 +79,60 @@ def main() -> None:
         "exist_ok": bool(args.exist_ok),
     }
     if args.dry_run:
-        print(json.dumps({"script": Path(__file__).name, "status": "dry_run", "gate": args.gate, "overrides": overrides, "extra_args": args.extra}, indent=2))
+        print(
+            json.dumps(
+                {
+                    "script": Path(__file__).name,
+                    "status": "dry_run",
+                    "gate": args.gate,
+                    "gate_lambda": args.gate_lambda,
+                    "overrides": overrides,
+                    "extra_args": args.extra,
+                },
+                indent=2,
+            ),
+            flush=True,
+        )
         return
+    print(
+        json.dumps(
+            {
+                "script": Path(__file__).name,
+                "status": "start",
+                "time": datetime.now().isoformat(timespec="seconds"),
+                "gate": args.gate,
+                "gate_lambda": args.gate_lambda,
+                "overrides": overrides,
+                "validate_out": args.validate_out,
+                "extra_args": args.extra,
+            },
+            indent=2,
+        ),
+        flush=True,
+    )
     trainer = E12DetectionTrainer(overrides=overrides)
     trainer.set_fusion_mode(args.mode)
+    trainer.set_gate_lambda(args.gate_lambda)
     trainer.set_ir_data(str(Path(args.data_ir)) if args.mode in {"ir", "rgb_ir"} else None)
     trainer.train()
 
     if args.validate_out:
         weights = Path(args.project) / args.name / "weights" / "best.pt"
+        print(
+            json.dumps(
+                {
+                    "script": Path(__file__).name,
+                    "status": "validate_start",
+                    "time": datetime.now().isoformat(timespec="seconds"),
+                    "weights": str(weights),
+                    "validate_out": args.validate_out,
+                },
+                indent=2,
+            ),
+            flush=True,
+        )
+        env = os.environ.copy()
+        env["PYTHONUNBUFFERED"] = "1"
         subprocess.run(
             [
                 sys.executable,
@@ -100,8 +153,11 @@ def main() -> None:
                 args.device,
                 "--out-dir",
                 args.validate_out,
+                "--gate-lambda",
+                str(args.gate_lambda),
             ],
             check=True,
+            env=env,
         )
 
 

@@ -10,6 +10,7 @@ cd /mnt/disk2/lhr/VSD || exit 1
 
 export CUDA_VISIBLE_DEVICES=0
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
+export PYTHONUNBUFFERED=1
 
 PY=/mnt/disk2/lhr/conda_envs/vsd/bin/python
 RUNNER=scripts/dark_small_experiment_runner.py
@@ -33,9 +34,9 @@ run_exp() {
   echo "===== $(date '+%F %T') 开始 ${exp_id} ====="
   record_status "${exp_id}" "running"
 
-  if "${PY}" "${RUNNER}" run "${exp_id}" --work-dir /mnt/disk2/lhr/VSD; then
+  if "${PY}" -u "${RUNNER}" run "${exp_id}" --work-dir /mnt/disk2/lhr/VSD; then
     record_status "${exp_id}" "done"
-    "${PY}" "${RUNNER}" aggregate || true
+    "${PY}" -u "${RUNNER}" aggregate || true
   else
     record_status "${exp_id}" "failed"
     echo "===== ${exp_id} 失败，继续执行后续可独立实验 ====="
@@ -52,8 +53,8 @@ run_exp E10_2
 record_status E10_3 "paused_until_E10_2_beats_E6_640"
 record_status E10_4 "paused_until_E10_2_beats_E6_640"
 
-"${PY}" "${RUNNER}" aggregate || true
-"${PY}" scripts/render_key_result_figures.py --results-val /mnt/disk2/lhr/VSD/results/val || true
+"${PY}" -u "${RUNNER}" aggregate || true
+"${PY}" -u scripts/render_key_result_figures.py --results-val /mnt/disk2/lhr/VSD/results/val || true
 
 echo
 echo "===== $(date '+%F %T') E7/E8/E10 队列结束 ====="

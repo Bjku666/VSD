@@ -1,0 +1,10 @@
+numpy
+torch
+ultralytics
+opencv-python
+pillow
+matplotlib
+pyyaml
+pycocotools
+ensemble-boxes
+thop

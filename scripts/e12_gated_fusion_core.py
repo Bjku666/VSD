@@ -18,9 +18,10 @@ from e6_feature_fusion_multiscale_core import E6DetectionTrainer, E6MultiScaleFu
 class ResidualGatedFusion(nn.Module):
     """Average-preserving residual gate for same-channel RGB/IR features."""
 
-    def __init__(self, channels: int):
+    def __init__(self, channels: int, gate_lambda: float = 1.0):
         super().__init__()
         self.channels = int(channels)
+        self.gate_lambda = float(gate_lambda)
         self.avg = Conv(channels * 2, channels, k=1, s=1)
         self.residual = Conv(channels * 2, channels, k=1, s=1)
         self.gate = nn.Sequential(
@@ -52,17 +53,18 @@ class ResidualGatedFusion(nn.Module):
         cat = torch.cat((rgb, ir), dim=1)
         diff = torch.abs(rgb - ir)
         gate = self.gate(torch.cat((rgb, ir, diff), dim=1))
-        return self.avg(cat) + gate * self.residual(cat)
+        return self.avg(cat) + self.gate_lambda * gate * self.residual(cat)
 
 
 class E12ResidualGatedFusionModel(E6MultiScaleFusionModel):
     """YOLO11n E6 backbone with residual gated fusion at P3/P4/P5/top save nodes."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, gate_lambda: float = 1.0, **kwargs):
+        self.gate_lambda = float(gate_lambda)
         super().__init__(*args, **kwargs)
         channels_map = self._infer_fusion_channels()
         self.fusion_convs = nn.ModuleDict(
-            {str(i): ResidualGatedFusion(channels_map[i]) for i in self.fusion_indices}
+            {str(i): ResidualGatedFusion(channels_map[i], gate_lambda=self.gate_lambda) for i in self.fusion_indices}
         )
 
     def predict(self, x, profile: bool = False, visualize: bool = False, augment: bool = False, embed=None):
@@ -114,6 +116,13 @@ class E12DetectionTrainer(E6DetectionTrainer):
 
     model_cfg = "yolo11n.yaml"
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.gate_lambda = 1.0
+
+    def set_gate_lambda(self, gate_lambda: float) -> None:
+        self.gate_lambda = float(gate_lambda)
+
     @staticmethod
     def _load_state_from_weights(weights: str | nn.Module) -> dict[str, torch.Tensor]:
         if isinstance(weights, nn.Module):
@@ -150,6 +159,7 @@ class E12DetectionTrainer(E6DetectionTrainer):
             nc=self.data["nc"],
             verbose=verbose and RANK == -1,
             fusion_mode=self.fusion_mode,
+            gate_lambda=self.gate_lambda,
         )
         if weights is not None:
             has_trained_ir_branch = self._weights_include_ir_branch(weights)

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 import json
 import os
 import sys
@@ -14,6 +15,12 @@ if scripts_dir and scripts_dir not in sys.path:
     sys.path.insert(0, scripts_dir)
 
 from e13_tiny_aware_loss_core import E13DetectionTrainer
+
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(line_buffering=True)
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(line_buffering=True)
 
 
 def parse_args() -> argparse.Namespace:
@@ -44,6 +51,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--scale-max-gain", type=float, default=3.0)
     parser.add_argument("--center-alpha", type=float, default=0.25)
     parser.add_argument("--center-max", type=float, default=4.0)
+    parser.add_argument("--loss-scope", type=str, default="all", choices=["all", "small", "target"])
+    parser.add_argument("--aux-weight", type=float, default=1.0)
+    parser.add_argument("--tiny-px", type=float, default=29.7)
+    parser.add_argument("--dark-threshold", type=float, default=33.50320816040039)
+    parser.add_argument("--low-contrast-threshold", type=float, default=0.08425217866897583)
+    parser.add_argument("--contrast-ring-scale", type=float, default=1.6)
     parser.add_argument("--small-threshold-source", default=None, help="Accepted for demo compatibility; fixed --small-px is used unless explicitly changed.")
     parser.add_argument("--validate-out", default=None, help="Accepted for demo compatibility; validation is handled by e13_val_tiny_aware_loss.py.")
     parser.add_argument("--dry-run", action="store_true")
@@ -83,7 +96,8 @@ def main() -> None:
 
     payload = {
         "script": Path(__file__).name,
-        "status": "ready",
+        "status": "dry_run" if args.dry_run else "start",
+        "time": datetime.now().isoformat(timespec="seconds"),
         "dry_run": bool(args.dry_run),
         "mode": args.mode,
         "loss": args.loss,
@@ -93,11 +107,18 @@ def main() -> None:
         "scale_max_gain": args.scale_max_gain,
         "center_alpha": args.center_alpha,
         "center_max": args.center_max,
+        "loss_scope": args.loss_scope,
+        "aux_weight": args.aux_weight,
+        "tiny_px": args.tiny_px,
+        "dark_threshold": args.dark_threshold,
+        "low_contrast_threshold": args.low_contrast_threshold,
+        "contrast_ring_scale": args.contrast_ring_scale,
         "overrides": overrides,
     }
     if args.dry_run:
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        print(json.dumps(payload, ensure_ascii=False, indent=2), flush=True)
         return
+    print(json.dumps(payload, ensure_ascii=False, indent=2), flush=True)
 
     trainer = E13DetectionTrainer(overrides=overrides)
     trainer.set_fusion_mode(args.mode)
@@ -110,6 +131,12 @@ def main() -> None:
         scale_max_gain=args.scale_max_gain,
         center_alpha=args.center_alpha,
         center_max=args.center_max,
+        loss_scope=args.loss_scope,
+        aux_weight=args.aux_weight,
+        tiny_px=args.tiny_px,
+        dark_threshold=args.dark_threshold,
+        low_contrast_threshold=args.low_contrast_threshold,
+        contrast_ring_scale=args.contrast_ring_scale,
     )
     trainer.train()
 

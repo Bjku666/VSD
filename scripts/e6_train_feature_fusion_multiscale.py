@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
+import json
 import os
 import sys
 from pathlib import Path
@@ -13,6 +15,12 @@ if scripts_dir and scripts_dir not in sys.path:
     sys.path.insert(0, scripts_dir)
 
 from e6_feature_fusion_multiscale_core import E6DetectionTrainer
+
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(line_buffering=True)
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(line_buffering=True)
 
 
 def parse_args() -> argparse.Namespace:
@@ -88,6 +96,20 @@ def main() -> None:
         "resume": bool(args.resume),
         "exist_ok": bool(args.exist_ok),
     }
+
+    print(
+        json.dumps(
+            {
+                "script": Path(__file__).name,
+                "status": "start",
+                "time": datetime.now().isoformat(timespec="seconds"),
+                "mode": args.mode,
+                "overrides": overrides,
+            },
+            indent=2,
+        ),
+        flush=True,
+    )
 
     trainer = E6DetectionTrainer(overrides=overrides)
     trainer.set_fusion_mode(args.mode)

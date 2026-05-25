@@ -25,6 +25,12 @@ if scripts_dir and scripts_dir not in sys.path:
 from e12_gated_fusion_core import E12DetectionTrainer
 
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(line_buffering=True)
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(line_buffering=True)
+
+
 def _to_float(value: Any, default: float = 0.0) -> float:
     try:
         return float(value)
@@ -267,6 +273,7 @@ def _evaluate_once(
     name: str,
     plots: bool,
     exist_ok: bool,
+    gate_lambda: float = 1.0,
     include_efficiency: bool = False,
 ) -> Dict[str, Any]:
     eval_data_yaml = str(Path(data_yaml))
@@ -304,6 +311,7 @@ def _evaluate_once(
     try:
         trainer = E12DetectionTrainer(overrides=overrides)
         trainer.set_fusion_mode(mode)
+        trainer.set_gate_lambda(gate_lambda)
         trainer.set_ir_data(str(Path(data_ir_yaml)) if mode in {"ir", "rgb_ir"} else None)
         trainer.setup_model()
         trainer.model = trainer.model.to(trainer.device).float().eval()
@@ -423,6 +431,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch", type=int, default=32)
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--device", type=str, default="0")
+    parser.add_argument("--gate-lambda", type=float, default=1.0, help="Residual gate scale used by the trained checkpoint.")
     parser.add_argument(
         "--out-dir",
         type=str,
@@ -511,6 +520,7 @@ def main() -> None:
         name=ultra_name_full,
         plots=True,
         exist_ok=bool(args.exist_ok),
+        gate_lambda=args.gate_lambda,
         include_efficiency=True,
     )
     small_metrics = _evaluate_once(
@@ -527,6 +537,7 @@ def main() -> None:
         name=ultra_name_small,
         plots=False,
         exist_ok=True,
+        gate_lambda=args.gate_lambda,
     )
     dark_metrics = _evaluate_once(
         weights=args.weights,
@@ -542,6 +553,7 @@ def main() -> None:
         name=ultra_name_dark,
         plots=False,
         exist_ok=True,
+        gate_lambda=args.gate_lambda,
     )
     dark_small_metrics = _evaluate_once(
         weights=args.weights,
@@ -557,6 +569,7 @@ def main() -> None:
         name=ultra_name_dark_small,
         plots=False,
         exist_ok=True,
+        gate_lambda=args.gate_lambda,
     )
     tiny_metrics = _evaluate_once(
         weights=args.weights,
@@ -572,6 +585,7 @@ def main() -> None:
         name=ultra_name_tiny,
         plots=False,
         exist_ok=True,
+        gate_lambda=args.gate_lambda,
     )
     low_contrast_metrics = _evaluate_once(
         weights=args.weights,
@@ -587,6 +601,7 @@ def main() -> None:
         name=ultra_name_low_contrast,
         plots=False,
         exist_ok=True,
+        gate_lambda=args.gate_lambda,
     )
 
     class_names = _load_class_names(data_yaml)
@@ -621,6 +636,7 @@ def main() -> None:
         "imgsz": int(args.imgsz),
         "split": args.split,
         "device": args.device,
+        "gate_lambda": float(args.gate_lambda),
         "data": {
             "full": str(Path(data_yaml)),
             "small": str(Path(data_small)),

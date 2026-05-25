@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+from datetime import datetime
 import os
 import json
 import re
@@ -23,6 +24,12 @@ import yaml
 
 
 DEFAULT_MANIFEST = Path("/mnt/disk2/lhr/VSD/configs/experiments/dark_small_next.yaml")
+
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(line_buffering=True)
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(line_buffering=True)
 
 
 @dataclass(frozen=True)
@@ -47,23 +54,25 @@ def _write_yaml(path: Path, data: dict[str, Any]) -> None:
 
 def _run(argv: list[str], dry_run: bool) -> None:
     printable = " ".join(shlex.quote(x) for x in argv)
-    print(printable)
+    print(f"[runner] {datetime.now().isoformat(timespec='seconds')} start: {printable}", flush=True)
     if dry_run:
         return
     env = os.environ.copy()
+    env["PYTHONUNBUFFERED"] = "1"
     scripts_dir = str(Path(__file__).resolve().parent)
     pythonpath = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = scripts_dir if not pythonpath else f"{scripts_dir}{os.pathsep}{pythonpath}"
     env.setdefault("VSD_E5_SCRIPTS_DIR", scripts_dir)
     env.setdefault("VSD_E6_SCRIPTS_DIR", scripts_dir)
     subprocess.run(argv, check=True, env=env)
+    print(f"[runner] {datetime.now().isoformat(timespec='seconds')} done: {printable}", flush=True)
 
 
 def _batch_for(defaults: dict[str, Any], exp: dict[str, Any], family: str) -> int:
     if "batch" in exp:
         return int(exp["batch"])
     imgsz = str(exp.get("imgsz", 640))
-    key = "batch_fusion" if family in {"e5", "e6", "e11", "e12", "e13"} else "batch_single"
+    key = "batch_fusion" if family in {"e5", "e6", "e11", "e12", "e13", "e14"} else "batch_single"
     return int(defaults.get(key, {}).get(imgsz, 16))
 
 
@@ -81,7 +90,7 @@ def _resolve_train_data(manifest: dict[str, Any], exp: dict[str, Any], work_dir:
     modality = str(exp.get("modality", ""))
     if kind == "single":
         base_yaml = data[modality]
-    elif kind in {"e5", "e6", "e11", "e12", "e13"}:
+    elif kind in {"e5", "e6", "e11", "e12", "e13", "e14"}:
         mode = str(exp.get("mode", "rgb_ir"))
         base_yaml = data["rgb_ir"] if mode == "rgb_ir" else data[mode]
     else:
@@ -177,7 +186,7 @@ def _single_steps(manifest: dict[str, Any], exp: dict[str, Any], work_dir: Path)
         f"device={_device_for(defaults, exp)}",
         f"project={exp['project']}",
         f"name={exp['name']}",
-        f"seed={int(defaults['seed'])}",
+        f"seed={int(exp.get('seed', defaults['seed']))}",
         "deterministic=True",
         f"close_mosaic={int(exp.get('close_mosaic', 10))}",
         "exist_ok=True",
@@ -256,6 +265,9 @@ def _fusion_model_steps(manifest: dict[str, Any], exp: dict[str, Any], work_dir:
     elif kind == "e13":
         train_script = "e13_train_tiny_aware_loss.py"
         val_script = "e13_val_tiny_aware_loss.py"
+    elif kind == "e14":
+        train_script = "e14_train_cebs.py"
+        val_script = "e14_val_cebs.py"
     else:
         train_script = "e6_train_feature_fusion_multiscale.py"
         val_script = "e6_val_feature_fusion_multiscale.py"
@@ -289,7 +301,7 @@ def _fusion_model_steps(manifest: dict[str, Any], exp: dict[str, Any], work_dir:
         "--name",
         str(exp["name"]),
         "--seed",
-        str(int(defaults["seed"])),
+        str(int(exp.get("seed", defaults["seed"]))),
         "--close-mosaic",
         str(int(exp.get("close_mosaic", 10))),
         "--exist-ok",
@@ -303,6 +315,24 @@ def _fusion_model_steps(manifest: dict[str, Any], exp: dict[str, Any], work_dir:
             ("scale_max_gain", "--scale-max-gain"),
             ("center_alpha", "--center-alpha"),
             ("center_max", "--center-max"),
+            ("loss_scope", "--loss-scope"),
+            ("aux_weight", "--aux-weight"),
+            ("tiny_px", "--tiny-px"),
+            ("dark_threshold", "--dark-threshold"),
+            ("low_contrast_threshold", "--low-contrast-threshold"),
+            ("contrast_ring_scale", "--contrast-ring-scale"),
+        ):
+            if exp_key in exp:
+                train.extend([cli_key, str(exp[exp_key])])
+    if kind == "e12" and "gate_lambda" in exp:
+        train.extend(["--gate-lambda", str(exp["gate_lambda"])])
+    if kind == "e14":
+        for exp_key, cli_key in (
+            ("cebs_alpha", "--cebs-alpha"),
+            ("dark_threshold", "--dark-threshold"),
+            ("low_contrast_threshold", "--low-contrast-threshold"),
+            ("contrast_kernel", "--contrast-kernel"),
+            ("suppression_temperature", "--suppression-temperature"),
         ):
             if exp_key in exp:
                 train.extend([cli_key, str(exp[exp_key])])
@@ -324,6 +354,18 @@ def _fusion_model_steps(manifest: dict[str, Any], exp: dict[str, Any], work_dir:
         "--out-dir",
         str(exp["result_dir"]),
     ]
+    if kind == "e12" and "gate_lambda" in exp:
+        val.extend(["--gate-lambda", str(exp["gate_lambda"])])
+    if kind == "e14":
+        for exp_key, cli_key in (
+            ("cebs_alpha", "--cebs-alpha"),
+            ("dark_threshold", "--dark-threshold"),
+            ("low_contrast_threshold", "--low-contrast-threshold"),
+            ("contrast_kernel", "--contrast-kernel"),
+            ("suppression_temperature", "--suppression-temperature"),
+        ):
+            if exp_key in exp:
+                val.extend([cli_key, str(exp[exp_key])])
     return [CommandStep("train", train), CommandStep("validate", val)]
 
 
@@ -333,7 +375,7 @@ def _steps_for(manifest: dict[str, Any], exp: dict[str, Any], work_dir: Path) ->
         return _single_steps(manifest, exp, work_dir)
     if kind == "late_fusion":
         return _late_fusion_steps(manifest, exp)
-    if kind in {"e5", "e6", "e11", "e12", "e13"}:
+    if kind in {"e5", "e6", "e11", "e12", "e13", "e14"}:
         return _fusion_model_steps(manifest, exp, work_dir)
     if kind == "planned":
         return []
@@ -446,6 +488,10 @@ def _collect_rows(manifest: dict[str, Any], include_baselines: bool = True) -> l
             "Recall_dark-small",
             "AP_dark-small_object",
             "Recall_dark-small_object",
+            "AP_tiny_object",
+            "Recall_tiny_object",
+            "AP_low-contrast_object",
+            "Recall_low-contrast_object",
             "AP_tiny",
             "Recall_tiny",
             "AP_low-contrast",
@@ -480,7 +526,7 @@ def _write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
             if key not in fieldnames:
                 fieldnames.append(key)
     with path.open("w", encoding="utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(f, fieldnames=fieldnames, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 
@@ -510,6 +556,8 @@ def _write_md(path: Path, rows: list[dict[str, Any]]) -> None:
         "AP_tiny",
         "AP_low-contrast",
         "AP_dark-small_obj",
+        "AP_tiny_obj",
+        "AP_low-contrast_obj",
         "FP/image",
         "FPPI_dark",
         "FPPI_low-contrast",
@@ -545,6 +593,8 @@ def _write_md(path: Path, rows: list[dict[str, Any]]) -> None:
                     _format_float(row.get("AP_tiny")),
                     _format_float(row.get("AP_low-contrast")),
                     _format_float(row.get("AP_dark-small_object")),
+                    _format_float(row.get("AP_tiny_object")),
+                    _format_float(row.get("AP_low-contrast_object")),
                     _format_float(row.get("False Positives/image")),
                     _format_float(row.get("FPPI_dark")),
                     _format_float(row.get("FPPI_low-contrast")),

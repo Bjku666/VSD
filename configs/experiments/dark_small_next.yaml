@@ -248,7 +248,7 @@ experiments:
   mode: rgb_ir
   imgsz: 640
   batch: 32
-  workers: 32
+  workers: 4
   device: 0,1
   model: /mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt
   project: /mnt/disk2/lhr/VSD/results/val
@@ -299,6 +299,22 @@ experiments:
   result_dir: /mnt/disk2/lhr/VSD/results/val/e12_1_residual_gated_fusion_val
   status: done
   metrics: /mnt/disk2/lhr/VSD/results/val/e12_1_residual_gated_fusion_val/required_metrics.json
+- id: E12_1b
+  stage: E12
+  kind: e12
+  title: E6 + weak residual gated fusion
+  mode: rgb_ir
+  gate_lambda: 0.1
+  imgsz: 640
+  batch: 32
+  workers: 32
+  device: 0,1
+  model: /mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt
+  project: /mnt/disk2/lhr/VSD/results/val
+  name: e12_1b_weak_residual_gated_fusion
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e12_1b_weak_residual_gated_fusion_val
+  metrics: /mnt/disk2/lhr/VSD/results/val/e12_1b_weak_residual_gated_fusion_val/required_metrics.json
+  status: done
 - id: E12_2
   stage: E12
   kind: planned
@@ -359,6 +375,102 @@ experiments:
   metrics: /mnt/disk2/lhr/VSD/results/val/e13_3_e6_center_aware_loss_val/required_metrics.json
   status: done
   log: /mnt/disk2/lhr/VSD/results/val/logs/e13_3_center_aware_loss_20260520.log
+- id: E13_2b
+  stage: E13
+  kind: e13
+  title: E6 + small-scoped scale-aware loss
+  mode: rgb_ir
+  loss: scale-aware
+  loss_scope: small
+  aux_weight: 0.5
+  small_px: 32.0
+  scale_alpha: 0.5
+  scale_gamma: 0.5
+  scale_max_gain: 2.0
+  imgsz: 640
+  batch: 16
+  workers: 32
+  device: '1'
+  model: /mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt
+  project: /mnt/disk2/lhr/VSD/results/val
+  name: e13_2b_tiny_dark_scale_loss
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e13_2b_tiny_dark_scale_loss_val
+  metrics: /mnt/disk2/lhr/VSD/results/val/e13_2b_tiny_dark_scale_loss_val/required_metrics.json
+  status: done
+  log: /mnt/disk2/lhr/VSD/results/val/logs/e13_2b_tiny_dark_scale_loss_20260523_0036.log
+  note: GPU0 is occupied on 2026-05-23, so this first follow-up run uses GPU1 only with batch=16.
+- id: E13_3b
+  stage: E13
+  kind: e13
+  title: E6 + small-scoped center-aware loss
+  mode: rgb_ir
+  loss: center-aware
+  loss_scope: small
+  aux_weight: 0.5
+  small_px: 32.0
+  center_alpha: 0.25
+  center_max: 4.0
+  imgsz: 640
+  batch: 16
+  workers: 32
+  device: '1'
+  model: /mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt
+  project: /mnt/disk2/lhr/VSD/results/val
+  name: e13_3b_tiny_dark_center_loss
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e13_3b_tiny_dark_center_loss_val
+  metrics: /mnt/disk2/lhr/VSD/results/val/e13_3b_tiny_dark_center_loss_val/required_metrics.json
+  status: done
+  log: /mnt/disk2/lhr/VSD/results/val/logs/e13_3b_tiny_dark_center_loss_20260523.log
+- id: E13_4b
+  stage: E13
+  kind: e13
+  title: E6 + small-scoped scale-center loss w0.05
+  mode: rgb_ir
+  loss: scale-center-aware
+  loss_scope: small
+  aux_weight: 0.05
+  small_px: 32.0
+  scale_alpha: 0.5
+  scale_gamma: 0.5
+  scale_max_gain: 2.0
+  center_alpha: 0.25
+  center_max: 4.0
+  imgsz: 640
+  batch: 32
+  workers: 4
+  device: '0'
+  model: /mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt
+  project: /mnt/disk2/lhr/VSD/results/val
+  name: e13_4b_tiny_dark_scale_center_w005
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e13_4b_tiny_dark_scale_center_w005_val
+  metrics: /mnt/disk2/lhr/VSD/results/val/e13_4b_tiny_dark_scale_center_w005_val/required_metrics.json
+  status: done
+  log: /mnt/disk2/lhr/VSD/results/val/logs/e13_4b_tiny_dark_scale_center_w005_b32w4_20260523.log
+- id: E13_4c
+  stage: E13
+  kind: e13
+  title: E6 + small-scoped scale-center loss w0.10
+  mode: rgb_ir
+  loss: scale-center-aware
+  loss_scope: small
+  aux_weight: 0.10
+  small_px: 32.0
+  scale_alpha: 0.5
+  scale_gamma: 0.5
+  scale_max_gain: 2.0
+  center_alpha: 0.25
+  center_max: 4.0
+  imgsz: 640
+  batch: 32
+  workers: 4
+  device: '1'
+  model: /mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt
+  project: /mnt/disk2/lhr/VSD/results/val
+  name: e13_4c_tiny_dark_scale_center_w010
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e13_4c_tiny_dark_scale_center_w010_val
+  metrics: /mnt/disk2/lhr/VSD/results/val/e13_4c_tiny_dark_scale_center_w010_val/required_metrics.json
+  status: done
+  log: /mnt/disk2/lhr/VSD/results/val/logs/e13_4c_tiny_dark_scale_center_w010_b32w4_20260523.log
 - id: E13_4
   stage: E13
   kind: e13
@@ -381,3 +493,173 @@ experiments:
   result_dir: /mnt/disk2/lhr/VSD/results/val/e13_4_e6_scale_center_aware_loss_val
   status: pending_gpu_busy
   note: Ready to run after GPUs are free; both GPUs are currently occupied by an external Shawalt/litetrack job.
+- id: E18_5
+  stage: E18
+  kind: e13
+  title: E13_3b seed=1 stability
+  mode: rgb_ir
+  loss: center-aware
+  loss_scope: small
+  aux_weight: 0.5
+  small_px: 32.0
+  center_alpha: 0.25
+  center_max: 4.0
+  imgsz: 640
+  batch: 16
+  workers: 4
+  device: '0'
+  seed: 1
+  model: /mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt
+  project: /mnt/disk2/lhr/VSD/results/val
+  name: e18_5_e13_3b_seed1
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e18_5_e13_3b_seed1_val
+  metrics: /mnt/disk2/lhr/VSD/results/val/e18_5_e13_3b_seed1_val/required_metrics.json
+  status: done
+  log: /mnt/disk2/lhr/VSD/results/val/logs/e18_5_e13_3b_seed1_b16w4_gpu0_20260523.log
+- id: E18_6
+  stage: E18
+  kind: e13
+  title: E13_3b seed=2 stability
+  mode: rgb_ir
+  loss: center-aware
+  loss_scope: small
+  aux_weight: 0.5
+  small_px: 32.0
+  center_alpha: 0.25
+  center_max: 4.0
+  imgsz: 640
+  batch: 16
+  workers: 4
+  device: '1'
+  seed: 2
+  model: /mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt
+  project: /mnt/disk2/lhr/VSD/results/val
+  name: e18_6_e13_3b_seed2_rerun
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e18_6_e13_3b_seed2_rerun_val
+  metrics: /mnt/disk2/lhr/VSD/results/val/e18_6_e13_3b_seed2_rerun_val/required_metrics.json
+  status: done
+  log: /mnt/disk2/lhr/VSD/results/val/logs/e18_6_e13_3b_seed2_rerun_gpu1_20260524_143858.log
+  note: Seed=2 rerun completed after E18_check found duplicate metrics in the prior seed=2 run.
+- id: E18_check
+  stage: S6
+  kind: planned
+  title: E13_3b seed integrity check
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e18_check_e13_3b_seed_integrity
+  status: done_invalid
+  note: E18_5/E18_6 args and weight hashes differ, but key validation metrics are bit-identical; rerun seed=2 before using multi-seed means.
+- id: E22_1
+  stage: S6
+  kind: planned
+  title: hard negative list build and dedup
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e22_1_hard_negative_lists
+  status: done
+  note: Exported per-taxonomy hard-negative lists; only background_far is train-allowed for first curriculum.
+- id: E23
+  stage: S6
+  kind: planned
+  title: object-level evaluator
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e23_object_level_evaluator
+  metrics: /mnt/disk2/lhr/VSD/results/val/e23_object_level_evaluator/required_metrics.json
+  status: done
+  note: Evaluate AP/Recall for dark-small_object, tiny_object and low-contrast_object and compare with image-level metrics.
+- id: E13_3b_light
+  stage: S6
+  kind: e13
+  title: E13_3b-light target-scoped center loss
+  mode: rgb_ir
+  loss: center-aware
+  loss_scope: target
+  aux_weight: 0.03
+  small_px: 32.0
+  tiny_px: 29.7
+  dark_threshold: 33.50320816040039
+  low_contrast_threshold: 0.08425217866897583
+  contrast_ring_scale: 1.6
+  center_alpha: 0.25
+  center_max: 4.0
+  imgsz: 640
+  batch: 16
+  workers: 4
+  device: '0'
+  seed: 0
+  model: /mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt
+  project: /mnt/disk2/lhr/VSD/results/val
+  name: e13_3b_light_target_center_loss
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e13_3b_light_target_center_loss_val
+  metrics: /mnt/disk2/lhr/VSD/results/val/e13_3b_light_target_center_loss_val/required_metrics.json
+  object_metrics: /mnt/disk2/lhr/VSD/results/val/e23_e13_3b_light_object_level/required_metrics.json
+  status: done_not_candidate
+  log: /mnt/disk2/lhr/VSD/results/val/logs/e13_3b_light_target_center_loss_gpu0_20260524_143843.log
+  note: aux_weight=0.03; target scope means tiny OR dark-small OR low-contrast foreground, auxiliary only. Validation completed, but FP/image and FPPI_dark increased; object-level dark-small AP is below E6.
+- id: E22_2a
+  stage: S6
+  kind: planned
+  title: E13_3b-light + background_far hard negative 1.5x
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e22_2a_e13_3b_light_background_far_hn15_val
+  status: blocked_until_seed2_rerun_train_hn
+  note: Only background_far hard negatives are allowed; no class_confusion and no 3x/5x. Current E22_1 source is val FP, so prepare train-split HN before training.
+- id: E22_2b
+  stage: S6
+  kind: planned
+  title: E13_3b-light + background_far hard negative 2x
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e22_2b_e13_3b_light_background_far_hn2_val
+  status: blocked_until_seed2_rerun_train_hn
+  note: Only background_far hard negatives are allowed; no class_confusion and no 3x/5x. Current E22_1 source is val FP, so prepare train-split HN before training.
+- id: E14_1
+  stage: S6
+  kind: e14
+  title: E6 + CEBS alpha=0.05
+  mode: rgb_ir
+  imgsz: 640
+  batch: 16
+  workers: 4
+  device: '1'
+  seed: 0
+  model: /mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt
+  project: /mnt/disk2/lhr/VSD/results/val
+  name: e14_1_e6_cebs_a005
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e14_1_e6_cebs_a005_val
+  metrics: /mnt/disk2/lhr/VSD/results/val/e14_1_e6_cebs_a005_val/required_metrics.json
+  cebs_alpha: 0.05
+  dark_threshold: 33.50320816040039
+  low_contrast_threshold: 0.08425217866897583
+  contrast_kernel: 7
+  suppression_temperature: 0.08
+  status: train_done_val_wait_gpu1
+  log: /mnt/disk2/lhr/VSD/results/val/logs/e14_1_e6_cebs_a005_manual_val_gpu1_20260525_1231.log
+  note: Contrast-aware and error-guided background suppression; training finished, original chained validation failed before metrics export, manual validation is queued on GPU1.
+- id: E14_2
+  stage: S6
+  kind: e14
+  title: E6 + CEBS alpha=0.10
+  mode: rgb_ir
+  imgsz: 640
+  batch: 16
+  workers: 4
+  device: '0'
+  seed: 0
+  model: /mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt
+  project: /mnt/disk2/lhr/VSD/results/val
+  name: e14_2_e6_cebs_a010
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e14_2_e6_cebs_a010_val
+  metrics: /mnt/disk2/lhr/VSD/results/val/e14_2_e6_cebs_a010_val/required_metrics.json
+  cebs_alpha: 0.10
+  dark_threshold: 33.50320816040039
+  low_contrast_threshold: 0.08425217866897583
+  contrast_kernel: 7
+  suppression_temperature: 0.08
+  status: image_done_object_wait_gpu0
+  log: /mnt/disk2/lhr/VSD/results/val/logs/e14_2_e6_cebs_a010_object_eval_gpu0_20260525_1231.log
+  note: Contrast-aware and error-guided background suppression; image-level validation done with lower FP but lower AP_dark-small than E6/E13_3b, object-level evaluation queued on GPU0.
+- id: E14_3
+  stage: S6
+  kind: planned
+  title: E13_3b-light + CEBS alpha=0.05
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e14_3_e13_3b_light_cebs_a005_val
+  status: planned_after_E13_3b_light
+- id: E14_4
+  stage: S6
+  kind: planned
+  title: E13_3b-light + CEBS + background_far HN 1.5x
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e14_4_e13_3b_light_cebs_hn15_val
+  status: planned_after_E14_3_E22_2a

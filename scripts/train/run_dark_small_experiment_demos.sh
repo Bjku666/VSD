@@ -49,6 +49,10 @@ print_cmd() {
   printf '\n'
 }
 
+format_cmd() {
+  printf '%q ' "$@"
+}
+
 run_or_print() {
   if [[ "${RUN_MODE}" == "run" ]]; then
     "$@"
@@ -62,7 +66,15 @@ run_logged() {
   shift
   local log_file="${LOG_DIR}/${exp_id}_$(date +%Y%m%d_%H%M%S).log"
   if [[ "${RUN_MODE}" == "run" ]]; then
-    setsid "$@" > "${log_file}" 2>&1 < /dev/null &
+    {
+      echo "===== $(date '+%F %T') start ${exp_id} ====="
+      echo "cwd=${ROOT}"
+      echo "log_file=${log_file}"
+      printf 'command='
+      format_cmd "$@"
+      printf '\n\n'
+    } > "${log_file}"
+    setsid env PYTHONUNBUFFERED=1 "$@" >> "${log_file}" 2>&1 < /dev/null &
     echo "${exp_id} PID=$!"
     echo "${exp_id} log=${log_file}"
   else
@@ -125,6 +137,7 @@ e11_1() { planned_only E11_1 "E6 + P2 detection head; P2 is detection head only"
 e11_2() { planned_only E11_2 "E6 + P2 head + original P3/P4/P5 fusion" "${PY}" "${ROOT}/scripts/e11_train_p2_head.py" --base fusion --model "${E6_W}" --keep-p345-fusion --imgsz 640 --batch "${BATCH_FUSION}" --workers "${WORKERS}" --device "${DEVICE}" --name e11_2_e6_p2_p345_fusion --dry-run; }
 e11_3() { planned_only E11_3 "E6 + P2 head + 768" "${PY}" "${ROOT}/scripts/e11_train_p2_head.py" --base fusion --model "${E10_W}" --imgsz 768 --batch "${BATCH_FUSION}" --workers "${WORKERS}" --device "${DEVICE}" --name e11_3_e6_p2_head_768 --dry-run; }
 e12_1() { planned_only E12_1 "E6 + residual gated fusion" "${PY}" "${ROOT}/scripts/e12_train_gated_fusion.py" --gate residual --model "${E6_W}" --imgsz 640 --batch "${BATCH_FUSION}" --workers "${WORKERS}" --device "${DEVICE}" --name e12_1_residual_gated_fusion --dry-run; }
+e12_1b() { echo "# E12_1b: E6 + weak residual gated fusion"; runner_exp E12_1b; }
 e12_2() { planned_only E12_2 "E6 + spatial gate" "${PY}" "${ROOT}/scripts/e12_train_gated_fusion.py" --gate spatial --model "${E6_W}" --imgsz 640 --batch "${BATCH_FUSION}" --workers "${WORKERS}" --device "${DEVICE}" --name e12_2_spatial_gate --dry-run; }
 e12_3() { planned_only E12_3 "E6 + dark-aware gate" "${PY}" "${ROOT}/scripts/e12_train_gated_fusion.py" --gate dark-aware --model "${E6_W}" --imgsz 640 --batch "${BATCH_FUSION}" --workers "${WORKERS}" --device "${DEVICE}" --name e12_3_dark_aware_gate --dry-run; }
 e12_4() { planned_only E12_4 "E6 + dark-small resampling + dark-aware gate" "${PY}" "${ROOT}/scripts/e12_train_gated_fusion.py" --gate dark-aware --reweight-subset "${ROOT}/configs/dronevehicle_resplit/subsets/rgb_ir_dark-small.yaml" --reweight-multiplier 3 --model "${E6_W}" --imgsz 640 --batch "${BATCH_FUSION}" --workers "${WORKERS}" --device "${DEVICE}" --name e12_4_dark_aware_gate_darksmall_x3 --dry-run; }
@@ -175,7 +188,7 @@ E8_1 E8_2 E8_3 E8_4
 E9_1 E9_2
 E10_1 E10_2 E10_3 E10_4
 E11_1 E11_2 E11_3
-E12_1 E12_2 E12_3 E12_4
+E12_1 E12_1b E12_2 E12_3 E12_4
 E13_1 E13_2 E13_3 E13_4 E13_5 E13_6
 E14_1 E14_2 E14_3 E14_4
 E15_1 E15_2 E15_3 E15_4
@@ -208,7 +221,7 @@ run_id() {
     e9_1) e9_1 ;; e9_2) e9_2 ;;
     e10_1) e10_1 ;; e10_2) e10_2 ;; e10_3) e10_3 ;; e10_4) e10_4 ;;
     e11_1) e11_1 ;; e11_2) e11_2 ;; e11_3) e11_3 ;;
-    e12_1) e12_1 ;; e12_2) e12_2 ;; e12_3) e12_3 ;; e12_4) e12_4 ;;
+    e12_1) e12_1 ;; e12_1b) e12_1b ;; e12_2) e12_2 ;; e12_3) e12_3 ;; e12_4) e12_4 ;;
     e13_1) e13_1 ;; e13_2) e13_2 ;; e13_3) e13_3 ;; e13_4) e13_4 ;; e13_5) e13_5 ;; e13_6) e13_6 ;;
     e14_1) e14_1 ;; e14_2) e14_2 ;; e14_3) e14_3 ;; e14_4) e14_4 ;;
     e15_1) e15_1 ;; e15_2) e15_2 ;; e15_3) e15_3 ;; e15_4) e15_4 ;;
