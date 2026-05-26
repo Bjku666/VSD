@@ -67,14 +67,14 @@ S6 当前只允许执行：E23 / E18_check / E22_1 / E13_3b-light / E22_2a / E22
 | E20_0 | done | E6/E12_1/E13_2 predictions available | results/val/e20_0_error_delta_analysis/ | yes | E6 vs E12_1 vs E13_2 差异诊断完成：conf=0.25、IoU=0.50；E6 TP=21011/FP=2753/FN=1451，E12_1 消除 E6 FP 660 个但漏掉 E6 TP 399 个，E13_2 消除 E6 FP 677 个但漏掉 E6 TP 407 个 |
 | E22_0 | done | E20_0 done | results/val/e22_0_hard_negative_taxonomy/ | yes | hard negative taxonomy 完成：FP 共 7713 条，background_far=3393，class_confusion=3127，localization_error=918，duplicate_or_conf_threshold=223，near_object_background=52；暂不训练 3x/5x |
 | E22_1 | done | E22_0 done | results/val/e22_1_hard_negative_lists/ | yes | S6-3 完成：输出 5 类 hard negative TSV 列表；background_far=3393 条且唯一 train-allowed，class_confusion/localization_error 等仅诊断导出 |
-| E22_2a | running_gpu1_batch48 | E22_1 done / train-split HN source | results/val/e22_2a_e6_background_far_hn15_val/ |  | S6-5：E6 + train-split background_far hard negative 1.5x；旧 GPU0 batch16 partial 已删除，当前在 GPU1 以 batch=48、workers=8 重启，日志：results/val/logs/e22_2a_e6_background_far_hn15_gpu1_b48_20260525_1720.log |
-| E22_2b | blocked | E18_check valid / E22_1 done / train-split HN source | results/val/e22_2b_e13_3b_light_background_far_hn2_val/ |  | S6-5：E13_3b-light + background_far hard negative 2x；不允许 3x/5x，不混入 class_confusion |
+| E22_2a | done_not_candidate | E22_1 done / train-split HN source | results/val/e22_2a_e6_background_far_hn15_val/ | no | S6-5：E6 + train-split background_far hard negative 1.5x；训练、统一验证和 object-level 完成；mAP50-95=0.636090，AP_dark-small=0.515064，AP_tiny=0.556958，AP_low-contrast=0.638263，但 FP/image=1.606535、FPPI_dark=2.815341 升高，object-level AP_dark-small=0.096331 低于 E6 的 0.100028，不作为候选 |
+| E22_2b | done_not_candidate | E22_1 done / train-split HN source | results/val/e22_2b_e6_background_far_hn2_val/ | no | S6-5：E6 + train-split background_far hard negative 2x；训练、统一验证和 object-level 完成；mAP50-95=0.632997，AP_dark-small=0.521550，AP_tiny=0.552714，AP_low-contrast=0.636456，但 FP/image=1.562968、FPPI_dark=2.843750 高于 E6，object-level AP_dark-small=0.095848 低于 E6 的 0.100028，不作为候选 |
 | E23 | done | E6 weights / train-only thresholds | results/val/e23_object_level_evaluator/ | yes | S6-1 完成：E6 object-level metrics 输出；AP_dark-small_object=0.100028，Recall_dark-small_object=0.657039，AP_tiny_object=0.054049，Recall_tiny_object=0.500678，AP_low-contrast_object=0.246427，Recall_low-contrast_object=0.725633 |
 | E14_1 | done_not_candidate | E23 done / CEBS implementation | results/val/e14_1_e6_cebs_a005_val/ | no | E6 + CEBS alpha=0.05；image-level：mAP50-95=0.637235，AP_dark-small=0.515630，FP/image=1.328114，FPPI_dark=2.258523；object-level AP_dark-small=0.087590，低于 E6 的 0.100028，因此不作为候选 |
 | E14_2 | done_not_candidate | E14_1 reviewed | results/val/e14_2_e6_cebs_a010_val/ | no | E6 + CEBS alpha=0.10；image-level：mAP50-95=0.633557，AP_dark-small=0.505991，FP/image=1.238257，FPPI_dark=2.059659；object-level AP_dark-small=0.098110，仍低于 E6 的 0.100028，因此不作为候选 |
-| E14_3 | planned | E13_3b-light done / E14_1 reviewed | results/val/e14_3_e13_3b_light_cebs_a005_val/ |  | E13_3b-light + CEBS alpha=0.05 |
-| E14_4 | planned | E14_3 reviewed / train-split background_far HN | results/val/e14_4_e13_3b_light_cebs_hn15_val/ |  | E13_3b-light + CEBS + background_far HN 1.5x；仅在 B/C 候选需要时执行 |
-| E24_0 | next | E13_3b reviewed | results/val/e24_0_e13_3b_candidate_freeze/ |  | S6-4：冻结 E13_3b candidate config；记录 configs/frozen/e13_3b_candidate.yaml、seed0/1/2 权重路径、metrics、protocol version、commit hash、training args 和 evaluation args |
+| E14_3 | done_not_candidate | E13_3b-light done / E14_1 reviewed | results/val/e14_3_e13_3b_light_cebs_a005_val/ | no | E13_3b-light + CEBS alpha=0.05；训练、统一验证和 object-level 完成；mAP50-95=0.633003，AP_dark-small=0.502155，FP/image=1.307692，FPPI_dark=2.196023，object-level AP_dark-small=0.087600 低于 E6 的 0.100028，不作为候选 |
+| E14_4 | skipped_not_justified | E14_3 reviewed / train-split background_far HN | results/val/e14_4_e13_3b_light_cebs_hn15_val/ | no | E13_3b-light + CEBS + background_far HN 1.5x；E14_3、E22_2a、E22_2b 均未满足 image/object 候选条件，因此不再执行组合实验 |
+| E24_0 | blocked_no_valid_candidate | E13_3b reviewed | results/val/e24_0_e13_3b_candidate_freeze/ |  | S6-4：冻结候选配置；当前没有满足 image/object 条件且 seed 状态有效的候选，E24 demo placeholder 不作为真实冻结实验执行 |
 
 ## 当前结论与下一步
 
@@ -82,7 +82,8 @@ S6 当前只允许执行：E23 / E18_check / E22_1 / E13_3b-light / E22_2a / E22
 - E2 保留为暗弱支撑基线；E4 保留为低误报 WBF 参考线。
 - S5 done：E20_0、E22_0、E13_loss_check、E18 多 seed、E12_1b 均已完成。普通 gate / P2 / 全局 loss 不再继续；主要 FP 来源为 background_far、class_confusion、localization_error。
 - E13_3b 是当前最有希望的低误报候选：单 seed 同时做到 AP_dark-small 略高于 E6、FP/image 明显低于 E6、FPPI_dark 明显低于 E6。但 E13_3b 三 seed 汇总为 mAP50-95=0.635227±0.000547，AP_dark-small=0.509066±0.004227，AP_tiny=0.556394±0.002042，FP/image=1.329476±0.037730，FPPI_dark=2.265152±0.150898；稳定降低误报，但 AP_dark-small 均值低于 E6 三 seed 均值。
-- S6 running：E23 object-level evaluator 已补齐，E18_check 已判定旧 E13_3b seed=1/2 指标完全重复，E22_1 已输出 per-taxonomy hard negative list；E18_6 seed=2 已完成单卡重跑但指标仍与 seed=1 完全一致，需要继续标记为 suspicious；E13_3b-light 已完成但 FP 显著升高且 object-level AP_dark-small 低于 E6，不作为候选；E14_1/E14_2 CEBS 已完成 image-level 与 object-level，均未保住 dark-small object AP，不作为候选。
+- S6 review：E23 object-level evaluator 已补齐，E18_check 已判定旧 E13_3b seed=1/2 指标完全重复，E22_1 已输出 per-taxonomy hard negative list；E18_6 seed=2 已完成单卡重跑但指标仍与 seed=1 完全一致，需要继续标记为 suspicious；E13_3b-light 已完成但 FP 显著升高且 object-level AP_dark-small 低于 E6，不作为候选；E14_1/E14_2/E14_3 CEBS 已完成 image-level 与 object-level，均未保住 dark-small object AP，不作为候选；E22_2a/E22_2b train-split background_far HN 已完成，但 FP 和 FPPI_dark 升高、object-level AP_dark-small 低于 E6，不作为候选；E14_4 无执行依据，E24_0 因无有效候选而阻塞。
+- S6 reproducibility audit 已通过：`python scripts/s6_repro_audit.py` 输出 `results/val/s6_repro_audit/metrics_summary.md`，status=pass、failures=0。审计覆盖 manifest 状态、训练 args/weights hash、required_metrics/object_metrics 与 leaderboard 一致性、train-split HN 来源、关键日志完成标记和 S6 demo。保留 3 个警告：E18 multi-seed invalid、E22_2a 训练日志含早期中断 traceback 但最终完成、当前 git worktree dirty。
 - 暂停 E12_1c/E12_1d、E13_4b/E13_4c 后续扩展、E11_2/E11_3、E10_3/E10_4、E15 强模型对照和 E21 test set；不运行 test set，不启动 RT-DETR / YOLOv10 / YOLO11s，不训练 hard negative 3x/5x。
 
 
@@ -96,7 +97,7 @@ S6 当前只允许执行：E23 / E18_check / E22_1 / E13_3b-light / E22_2a / E22
 | S3 | 高分辨率/后融合/重采样初筛 | E7、E8、E10_2 | done / paused | 高分辨率、WBF 权重搜索和 IR 重采样暂不作为主线；E10_3/E10_4 暂停 |
 | S4 | 小目标头/门控/loss 初筛 | E11_1、E12_1、E13_2、E13_3 | done / partial | P2、gate、loss 都能降低 FP，但 AP_dark-small 低于 E6 |
 | S5 | 诊断优化阶段 | E20_0、E18_1/E18_2、E12_1b、E13_loss_check、E22_0 | done | 找到主要 FP 类型，确认 E13_3b 是当前最佳低误报候选但 AP_dark-small 三 seed 稳定性仍不足 |
-| S6 | 诊断驱动的目标保持型背景抑制阶段 | E23、E18_check、E22_1、E13_3b-light、E22_2a/b、E14、E24_0 | running | object-level 口径已落地；E13_3b 多 seed 当前 invalid；下一步围绕 target-scoped light loss、train-split HN 和 CEBS 推进 |
+| S6 | 诊断驱动的目标保持型背景抑制阶段 | E23、E18_check、E22_1、E13_3b-light、E22_2a/b、E14、E24_0 | awaiting_review | object-level 口径已落地；E13_3b 多 seed 当前 invalid；target-scoped light loss、train-split HN 和 CEBS 均未形成新候选 |
 | S7 | 论文完整验证阶段 | E15、E16、E18 full、E19、E20 full、E21、E24 full | not started | 暂不进入 test / 强模型 |
 
 当前进度：S5 诊断完成，进入 S6。现在不是继续普通 YOLO 模块扩展，而是围绕 object-level 口径、误报 taxonomy、target-scoped light loss 和目标保持型背景抑制做闭环。
@@ -109,11 +110,11 @@ S6 当前只允许执行：E23 / E18_check / E22_1 / E13_3b-light / E22_2a / E22
 | E13_3b seed 独立性核查 | E18_check | 已完成 | 关键指标完全一致，multi-seed invalid，需要重跑 seed=2 |
 | hard negative list 构建与去重 | E22_1 | 已完成 | 只构建列表，不训练；background_far 是唯一 train-allowed taxonomy |
 | E13_3b-light | E13_3b-light | 已完成，不作为候选 | FP/image 与 FPPI_dark 升高，object-level AP_dark-small 低于 E6 |
-| background_far hard negative 1.5x | E22_2a | running | 使用 train-split background_far HN 来源，当前 GPU1 batch=48 workers=8 运行中 |
-| background_far hard negative 2x | E22_2b | blocked | 同上，只允许 background_far，不允许 3x/5x |
+| background_far hard negative 1.5x | E22_2a | 已完成，不作为候选 | 使用 train-split background_far HN 来源；image-level AP_dark-small 提升但 FP/FPPI_dark 升高，object-level AP_dark-small 低于 E6 |
+| background_far hard negative 2x | E22_2b | 已完成，不作为候选 | 使用 train-split background_far HN 来源；image-level AP_dark-small 提升但 FP/FPPI_dark 升高，object-level AP_dark-small 低于 E6 |
 | CEBS alpha=0.05/0.10 | E14_1/E14_2 | 已完成，不作为候选 | E14_1 image-level 有提升但 object-level AP_dark-small 低于 E6；E14_2 降 FP 但 image/object dark-small AP 均低于 E6 |
-| CEBS 组合候选 | E14_3/E14_4 | 待 E13_3b-light 后执行 | 不强行使用 CEBS；若不超过 B 候选则作为讨论实验 |
-| candidate freeze | E24_0 | 待候选有效后执行 | 冻结配置、权重路径、metrics、protocol、commit、训练和验证参数 |
+| CEBS 组合候选 | E14_3/E14_4 | E14_3 已完成，不作为候选；E14_4 跳过 | 不强行使用 CEBS；E14_3 未超过 B 候选，且 HN 路线未提供组合依据 |
+| candidate freeze | E24_0 | 阻塞，无有效候选 | 冻结配置、权重路径、metrics、protocol、commit、训练和验证参数；当前 E24 脚本仍是 demo placeholder |
 | scale+center loss 后续扩展 | E13_4b / E13_4c | 暂停 | 误报明显升高，不作为当前最佳方向 |
 | P2 普通扩展 | E11_2 / E11_3 | 暂停 | E11_1 已低于 E6 |
 | 普通门控扩展 | E12_1c / E12_1d / E12_2 / E12_3 / E12_4 | 暂停 | gate 路线降 FP 但伤 AP_dark-small，S6 不继续 |
@@ -126,8 +127,10 @@ S6 当前只允许执行：E23 / E18_check / E22_1 / E13_3b-light / E22_2a / E22
 ## Demo 脚本
 
 - 全量编号 demo 入口：`scripts/train/run_dark_small_experiment_demos.sh`，覆盖 E0_1-E24_3，默认 dry-run。
+- 当前 S6 阶段 demo：`scripts/train/run_dark_small_experiment_demos.sh S6`，会展开 E18_check / E22_1 / E23 / E13_3b_light / E22_2a / E22_2b / E14_1 / E14_2 / E14_3 / E14_4 / E24_0；其中 E14_4 和 E24_0 只输出跳过/阻塞原因。
+- 当前 S6 可复现审计：`python scripts/s6_repro_audit.py`，报告写入 `results/val/s6_repro_audit/`；`--strict` 会在警告存在时返回非零。
 - 当前 E6 主线快捷 demo：`scripts/train/run_e6_mainline_demos.sh`。
-- 已实现的 manifest 实验可用 `RUN_MODE=run scripts/train/run_e6_mainline_demos.sh E13_2` 或 runner 直接启动；未实现的后续分支只输出编号一致的命令模板，不会误跑 test set。
+- 已实现的 manifest 实验可用 `RUN_MODE=run scripts/train/run_dark_small_experiment_demos.sh E22_2a` 或 runner 直接启动；未实现的后续分支只输出编号一致的命令模板，不会误跑 test set。
 
 ## 状态更新规则
 

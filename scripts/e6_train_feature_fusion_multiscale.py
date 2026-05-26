@@ -57,6 +57,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--close-mosaic", type=int, default=10)
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument(
+        "--resume-path",
+        type=str,
+        default="",
+        help="Explicit checkpoint to resume from. Avoids Ultralytics auto-selecting the latest run.",
+    )
     parser.add_argument("--patience", type=int, default=100)
     parser.add_argument("--fraction", type=float, default=1.0)
     parser.add_argument("--exist-ok", action="store_true")
@@ -93,7 +99,7 @@ def main() -> None:
         "patience": int(args.patience),
         "fraction": float(args.fraction),
         "close_mosaic": int(args.close_mosaic),
-        "resume": bool(args.resume),
+        "resume": str(Path(args.resume_path)) if args.resume_path else bool(args.resume),
         "exist_ok": bool(args.exist_ok),
     }
 

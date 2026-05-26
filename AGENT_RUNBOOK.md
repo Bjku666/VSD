@@ -31,7 +31,7 @@
 | S3 | 高分辨率/后融合/重采样初筛 | E7、E8、E10_2 | done / paused | 高分辨率、WBF 权重、IR 重采样暂不作为主线 |
 | S4 | 小目标头/门控/loss 初筛 | E11_1、E12_1、E13_2、E13_3 | done / partial | 都能降 FP，但 AP_dark-small 低于 E6 |
 | S5 | 诊断优化阶段 | E20_0、E18_1/E18_2、E12_1b、E13_loss_check、E22_0 | done | 找到主要 FP 类型，确认 E13_3b 是当前最佳低误报候选但 AP_dark-small 三 seed 稳定性仍不足 |
-| S6 | 诊断驱动的目标保持型背景抑制阶段 | E23、E18_check、E22_1、E13_3b-light、E22_2a/b、E14、E24_0 | running | 围绕 object-level 口径、seed 核查、hard negative 定向优化、target-scoped light loss 和 CEBS 候选推进 |
+| S6 | 诊断驱动的目标保持型背景抑制阶段 | E23、E18_check、E22_1、E13_3b-light、E22_2a/b、E14、E24_0 | awaiting_review | object-level 口径已落地；target-scoped light loss、train-split HN 和 CEBS 均未形成新候选 |
 | S7 | 论文完整验证阶段 | E15、E16、E18 full、E19、E20 full、E21、E24 full | not started | 暂不进入 test / 强模型 |
 
 当前定位：S5 诊断完成，进入 S6。上一轮 E7/E10/E11/E12/E13 的作用是初筛和诊断；当前不继续普通 YOLO 扩展，只围绕 object-level evaluator、误报 taxonomy、target-scoped light loss、background_far HN 和 CEBS 候选推进。
@@ -44,11 +44,11 @@
 | E13_3b seed 独立性核查 | E18_check | 已完成 | seed=1/2 args 和 weight hash 不同，但关键指标完全一致；multi-seed invalid，需重跑 seed=2 |
 | hard negative list 构建与去重 | E22_1 | 已完成 | 拆分 background_far、class_confusion、localization_error、near_object_background、duplicate_or_conf_threshold；仅 background_far train-allowed |
 | E13_3b-light | E13_3b-light | 已完成，不作为候选 | FP/image 与 FPPI_dark 升高，object-level AP_dark-small 低于 E6 |
-| background_far hard negative 1.5x | E22_2a | blocked | 必须先有 train-split hard negative source；不能直接用 val FP 训练 |
-| background_far hard negative 2x | E22_2b | blocked | 同上；不允许 3x/5x，不允许 class_confusion |
+| background_far hard negative 1.5x | E22_2a | 已完成，不作为候选 | 使用 train-split background_far HN；image-level AP_dark-small 提升但 FP/FPPI_dark 升高，object-level AP_dark-small 低于 E6 |
+| background_far hard negative 2x | E22_2b | 已完成，不作为候选 | 使用 train-split background_far HN；image-level AP_dark-small 提升但 FP/FPPI_dark 升高，object-level AP_dark-small 低于 E6 |
 | CEBS alpha=0.05/0.10 | E14_1/E14_2 | 已完成，不作为候选 | E14_1 image-level 有提升但 object-level AP_dark-small 低于 E6；E14_2 降 FP 但 image/object dark-small AP 均低于 E6 |
-| CEBS 组合候选 | E14_3/E14_4 | 待 E13_3b-light 后执行 | 若 CEBS 不超过 light/HN 候选，不作为主方法硬用 |
-| candidate freeze | E24_0 | 待最佳候选有效后执行 | 冻结配置、权重路径、metrics、protocol、commit、训练和验证参数 |
+| CEBS 组合候选 | E14_3/E14_4 | E14_3 已完成，不作为候选；E14_4 跳过 | E14_3 未超过 B 候选，且 HN 路线未提供组合依据 |
+| candidate freeze | E24_0 | 阻塞，无有效候选 | 当前没有满足 image/object 条件且 seed 状态有效的候选；E24 CLI 仍是 demo placeholder |
 | scale+center loss 后续扩展 | E13_4b/E13_4c | 暂停 | E13_4b/E13_4c 误报明显升高，不作为当前最佳方向 |
 | P2 普通扩展 | E11_2/E11_3 | 暂停 | E11_1 已低于 E6 |
 | 普通门控扩展 | E12_1c/E12_1d/E12_2/E12_3/E12_4 | 暂停 | gate 路线降 FP 但伤 AP_dark-small，S6 不继续 |
@@ -77,8 +77,9 @@
 - E22_1 只生成 hard negative list，不直接训练。
 - E22_2a/E22_2b 只使用 background_far hard negative 轻量采样，不使用 class_confusion/all 3x/5x；训练源必须来自 train split，不允许直接用 val FP 泄漏到训练。
 - 运行 E13 相关脚本时若出现 `CXXABI_1.3.15` / `cv2` 导入错误，先设置 `LD_LIBRARY_PATH=/mnt/disk2/lhr/conda_envs/vsd/lib`。
-- 当前实时日志入口：E14_1 原训练日志为 `results/val/logs/e14_1_e6_cebs_a005_gpu1_20260524_2126.log`，补验证日志为 `results/val/logs/e14_1_e6_cebs_a005_manual_val_gpu0_20260525_1605.log`，object-level 日志为 `results/val/logs/e14_1_e6_cebs_a005_object_eval_gpu0_20260525_1626.log`；E14_2 原训练/验证日志为 `results/val/logs/e14_2_e6_cebs_a010_gpu0_20260524_2228.log`，object-level 日志为 `results/val/logs/e14_2_e6_cebs_a010_object_eval_gpu0_20260525_1231.log`；E13_3b-light 日志为 `results/val/logs/e13_3b_light_target_center_loss_gpu0_20260524_143843.log`，已到 `VALIDATE_EXIT 0`。
-- E23 object-level evaluator 已支持 `--validator e14`；E14 object-level 评估需传入 CEBS 参数，当前 E14_2 已排队：`scripts/train/e14_2_object_wait_gpu0.sh`。
+- 当前 S6 关键日志入口：E22_2a object-level 日志为 `results/val/logs/e22_2a_hn15_object_eval_gpu0_20260526_0012.log`；E22_2b object-level 日志为 `results/val/logs/e22_2b_hn2_object_eval_gpu1_20260526.log`；E14_3 object-level 日志为 `results/val/logs/e14_3_cebs_a005_object_eval_gpu0_20260526.log`。
+- E23 object-level evaluator 已支持 `--validator e6` 和 `--validator e14`；E14 object-level 评估需传入 CEBS 参数。
+- S6 可复现审计入口：`python scripts/s6_repro_audit.py`，报告目录为 `results/val/s6_repro_audit/`。当前审计 status=pass、failures=0；警告为 E18 multi-seed invalid、E22_2a 训练日志含早期中断 traceback 但最终完成、git worktree dirty。
 
 ## 通过条件
 
@@ -107,7 +108,9 @@
 
 - `scripts/train/run_dark_small_experiment_demos.sh list` 列出 E0_1-E24_3 的全部编号。
 - 默认 dry-run；只有设置 `RUN_MODE=run` 才会执行已实现实验。
-- E7-E10 已接入 `dark_small_experiment_runner.py`；E11-E24 当前是编号一致的命令模板/占位入口，等待对应模型、loss 或分析脚本落地。
+- E7-E10 和 S6 的 E13_3b_light / E14 / E22_2a / E22_2b 已接入 `dark_small_experiment_runner.py`；E18_check、E22_1、E23 有真实 CLI demo；E24 仍是 demo placeholder，且当前无有效候选可冻结。
+- 当前阶段 demo 可用 `scripts/train/run_dark_small_experiment_demos.sh S6` 一次性 dry-run。
+- 当前阶段可复现审计可用 `python scripts/s6_repro_audit.py`；如需让任何 warning 也失败，追加 `--strict`。
 - 当前路线下不要用 demo 启动 E15 强模型对照或 E21 test set，除非已经进入最终论文阶段。
 
 ## 失败处理

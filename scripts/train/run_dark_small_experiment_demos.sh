@@ -24,6 +24,7 @@ BATCH_FUSION="${BATCH_FUSION:-32}"
 BATCH_LATE="${BATCH_LATE:-16}"
 WORKERS="${WORKERS:-32}"
 LOG_DIR="${ROOT}/results/val/logs"
+WORK_DIR="${WORK_DIR:-${ROOT}/results/val/work}"
 MODEL_N="${MODEL_N:-${ROOT}/weights/pretrained/yolo11n.pt}"
 MODEL_S="${MODEL_S:-${ROOT}/weights/pretrained/yolo11s.pt}"
 RGB_DATA="${ROOT}/configs/dronevehicle_resplit/dronevehicle_resplit_rgb.yaml"
@@ -34,7 +35,11 @@ E2_W="${ROOT}/results/val/e2_yolo11n_ir_only_640_ddp/weights/best.pt"
 E5_W="${ROOT}/results/val/yolo11n_e5_rgb_ir_640_ddp/weights/best.pt"
 E6_W="${ROOT}/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt"
 E10_W="${ROOT}/results/val/e10_2_e6_768/weights/best.pt"
+E13_3B_LIGHT_W="${ROOT}/results/val/e13_3b_light_target_center_loss/weights/best.pt"
+E14_3_W="${ROOT}/results/val/e14_3_e13_3b_light_cebs_a005/weights/best.pt"
 FINAL_W="${FINAL_W:-${E10_W}}"
+BATCH_OBJECT="${BATCH_OBJECT:-16}"
+WORKERS_OBJECT="${WORKERS_OBJECT:-8}"
 
 mkdir -p "${LOG_DIR}"
 cd "${ROOT}"
@@ -94,7 +99,63 @@ planned_only() {
 runner_exp() {
   local exp_id="$1"
   echo "# ${exp_id}: manifest-backed experiment"
-  run_logged "${exp_id}" "${PY}" "${RUNNER}" run "${exp_id}" --work-dir "${ROOT}"
+  if [[ "${RUN_MODE}" == "run" ]]; then
+    run_logged "${exp_id}" "${PY}" "${RUNNER}" run "${exp_id}" --work-dir "${WORK_DIR}"
+  else
+    echo "# log would be: ${LOG_DIR}/${exp_id}_$(date +%Y%m%d_%H%M%S).log"
+    print_cmd "${PY}" "${RUNNER}" run "${exp_id}" --dry-run --work-dir "${WORK_DIR}"
+  fi
+}
+
+object_eval_e6_after() {
+  local exp_id="$1"
+  local weights="$2"
+  local image_metrics="$3"
+  local out_dir="$4"
+  local device="$5"
+  local batch="$6"
+  planned_only "${exp_id}_object" "run after unified validation completes" \
+    "${PY}" "${ROOT}/scripts/e23_object_level_subset_eval.py" \
+    --weights "${weights}" --validator e6 --mode rgb_ir --split val \
+    --image-metrics "${image_metrics}" --imgsz 640 --batch "${batch}" \
+    --workers "${WORKERS_OBJECT}" --device "${device}" --out-dir "${out_dir}"
+}
+
+object_eval_e13_after() {
+  local exp_id="$1"
+  local weights="$2"
+  local image_metrics="$3"
+  local out_dir="$4"
+  local device="$5"
+  planned_only "${exp_id}_object" "run after unified validation completes" \
+    "${PY}" "${ROOT}/scripts/e23_object_level_subset_eval.py" \
+    --weights "${weights}" --validator e13 --mode rgb_ir --split val \
+    --image-metrics "${image_metrics}" --imgsz 640 --batch "${BATCH_OBJECT}" \
+    --workers "${WORKERS_OBJECT}" --device "${device}" --out-dir "${out_dir}"
+}
+
+object_eval_e14_after() {
+  local exp_id="$1"
+  local weights="$2"
+  local image_metrics="$3"
+  local out_dir="$4"
+  local device="$5"
+  local alpha="$6"
+  planned_only "${exp_id}_object" "run after unified validation completes" \
+    "${PY}" "${ROOT}/scripts/e23_object_level_subset_eval.py" \
+    --weights "${weights}" --validator e14 --mode rgb_ir --split val \
+    --image-metrics "${image_metrics}" --imgsz 640 --batch "${BATCH_OBJECT}" \
+    --workers "${WORKERS_OBJECT}" --device "${device}" --out-dir "${out_dir}" \
+    --cebs-alpha "${alpha}" --dark-threshold 33.50320816040039 \
+    --low-contrast-threshold 0.08425217866897583 --contrast-kernel 7 \
+    --suppression-temperature 0.08
+}
+
+s6_current() {
+  for id in E18_check E22_1 E23 E13_3b_light E22_2a E22_2b E14_1 E14_2 E14_3 E14_4 E24_0; do
+    echo
+    run_id "${id}"
+  done
 }
 
 # E0 protocol and dataset audit ------------------------------------------------
@@ -144,13 +205,46 @@ e12_4() { planned_only E12_4 "E6 + dark-small resampling + dark-aware gate" "${P
 e13_1() { planned_only E13_1 "loss baseline rerun for controlled ablation" "${PY}" "${ROOT}/scripts/e13_train_tiny_aware_loss.py" --loss baseline --model "${E6_W}" --name e13_1_e6_loss_baseline --dry-run; }
 e13_2() { planned_only E13_2 "small/tiny scale-aware weight" "${PY}" "${ROOT}/scripts/e13_train_tiny_aware_loss.py" --loss scale-aware --model "${E6_W}" --name e13_2_scale_aware --dry-run; }
 e13_3() { planned_only E13_3 "dark sample weighting" "${PY}" "${ROOT}/scripts/e13_train_tiny_aware_loss.py" --loss dark-weight --model "${E6_W}" --name e13_3_dark_weight --dry-run; }
+e13_3b_light() {
+  echo "# E13_3b_light: target-scoped center-aware loss, S6 reviewed"
+  runner_exp E13_3b_light
+  object_eval_e13_after E13_3b_light \
+    "${E13_3B_LIGHT_W}" \
+    "${ROOT}/results/val/e13_3b_light_target_center_loss_val/required_metrics.json" \
+    "${ROOT}/results/val/e23_e13_3b_light_object_level" \
+    "${DEVICE_SINGLE}"
+}
 e13_4() { planned_only E13_4 "dark-small sample weighting" "${PY}" "${ROOT}/scripts/e13_train_tiny_aware_loss.py" --loss dark-small-weight --model "${E6_W}" --name e13_4_darksmall_weight --dry-run; }
 e13_5() { planned_only E13_5 "center/location-sensitive bbox loss" "${PY}" "${ROOT}/scripts/e13_train_tiny_aware_loss.py" --loss center-aware --model "${E6_W}" --name e13_5_center_aware --dry-run; }
 e13_6() { planned_only E13_6 "WIoU/CIoU comparison" "${PY}" "${ROOT}/scripts/e13_train_tiny_aware_loss.py" --loss wiou-ciou --model "${E6_W}" --name e13_6_wiou_ciou --dry-run; }
-e14_1() { planned_only E14_1 "RGB gamma/CLAHE enhancement" "${PY}" "${ROOT}/scripts/e14_train_low_contrast_enhance.py" --enhance rgb-gamma-clahe --name e14_1_rgb_gamma_clahe --dry-run; }
-e14_2() { planned_only E14_2 "IR normalization and weak noise" "${PY}" "${ROOT}/scripts/e14_train_low_contrast_enhance.py" --enhance ir-normalize-weak-noise --name e14_2_ir_norm_noise --dry-run; }
-e14_3() { planned_only E14_3 "IR background suppression attention" "${PY}" "${ROOT}/scripts/e14_train_low_contrast_enhance.py" --enhance ir-background-suppression --name e14_3_ir_bgs_attention --dry-run; }
-e14_4() { planned_only E14_4 "low-contrast subset evaluation" "${PY}" "${ROOT}/scripts/e6_val_feature_fusion_multiscale.py" --weights "${FINAL_W}" --mode rgb_ir --split val --imgsz 640 --batch "${BATCH_FUSION}" --device "${DEVICE_SINGLE}" --out-dir "${ROOT}/results/val/e14_4_low_contrast_eval"; }
+e14_1() {
+  echo "# E14_1: E6 + CEBS alpha=0.05, S6 reviewed"
+  runner_exp E14_1
+  object_eval_e14_after E14_1 \
+    "${ROOT}/results/val/e14_1_e6_cebs_a005/weights/best.pt" \
+    "${ROOT}/results/val/e14_1_e6_cebs_a005_val/required_metrics.json" \
+    "${ROOT}/results/val/e23_e14_1_cebs_a005_object_level" \
+    "${DEVICE_SINGLE}" 0.05
+}
+e14_2() {
+  echo "# E14_2: E6 + CEBS alpha=0.10, S6 reviewed"
+  runner_exp E14_2
+  object_eval_e14_after E14_2 \
+    "${ROOT}/results/val/e14_2_e6_cebs_a010/weights/best.pt" \
+    "${ROOT}/results/val/e14_2_e6_cebs_a010_val/required_metrics.json" \
+    "${ROOT}/results/val/e23_e14_2_cebs_a010_object_level" \
+    "${DEVICE_SINGLE}" 0.10
+}
+e14_3() {
+  echo "# E14_3: E13_3b-light + CEBS alpha=0.05, S6 reviewed"
+  runner_exp E14_3
+  object_eval_e14_after E14_3 \
+    "${E14_3_W}" \
+    "${ROOT}/results/val/e14_3_e13_3b_light_cebs_a005_val/required_metrics.json" \
+    "${ROOT}/results/val/e23_e14_3_e13_3b_light_cebs_a005_object_level" \
+    "${DEVICE_SINGLE}" 0.05
+}
+e14_4() { planned_only E14_4 "skipped_not_justified: E14_3 and HN 1.5x/2x did not meet image/object candidate criteria" "${PY}" "${RUNNER}" run E14_4 --dry-run --work-dir "${WORK_DIR}"; }
 e15_1() { planned_only E15_1 "YOLOv10n strong model comparison" "${YOLO}" detect train model=yolov10n.pt data="${RGB_IR_DATA}" imgsz=640 epochs=100 batch="${BATCH_SINGLE}" workers="${WORKERS}" device="${DEVICE}" project="${ROOT}/results/val" name=e15_1_yolov10n; }
 e15_2() { planned_only E15_2 "RT-DETR-R18 comparison" "${YOLO}" detect train model=rtdetr-r18.pt data="${RGB_IR_DATA}" imgsz=640 epochs=100 batch=16 workers="${WORKERS}" device="${DEVICE}" project="${ROOT}/results/val" name=e15_2_rtdetr_r18; }
 e15_3() { planned_only E15_3 "YOLO11s modality/model-capacity comparison" "${PY}" "${ROOT}/scripts/e15_train_yolo11s_comparison.py" --modes rgb ir fusion --model "${MODEL_S}" --device "${DEVICE}" --dry-run; }
@@ -163,18 +257,39 @@ e16_5() { planned_only E16_5 "gated fusion under registration shift" "${PY}" "${
 e17_1() { e0_4; }
 e17_2() { planned_only E17_2 "low-contrast evaluation across selected models" "${PY}" "${ROOT}/scripts/e17_eval_low_contrast_models.py" --models E2="${E2_W}" E4="${ROOT}/results/val/e4_late_fusion_wbf_val" E10="${E10_W}" FINAL="${FINAL_W}" --dry-run; }
 e17_3() { planned_only E17_3 "report low-contrast AP/Recall/FPPI" "${PY}" "${ROOT}/scripts/e17_report_low_contrast.py" --results-val "${ROOT}/results/val" --dry-run; }
-e18() { planned_only E18 "multi-seed stability wrapper" "${PY}" "${ROOT}/scripts/e18_run_multiseed.py" --experiments E5 E6 E10_2 --seeds 1 2 --device "${DEVICE}" --dry-run; }
+e18_check() { echo "# E18_check: E13_3b seed independence audit"; run_logged E18_check "${PY}" "${ROOT}/scripts/e18_run_multiseed.py" --out-dir "${ROOT}/results/val/e18_check_e13_3b_seed_integrity"; }
+e18() { planned_only E18 "full multi-seed stability wrapper; not part of S6 current executable set" "${PY}" "${ROOT}/scripts/e18_run_multiseed.py" --dry-run; }
 e19() { planned_only E19 "efficiency/deployment metrics" "${PY}" "${ROOT}/scripts/e19_measure_efficiency.py" --models E2="${E2_W}" E6="${E6_W}" E10="${E10_W}" FINAL="${FINAL_W}" --dry-run; }
 e20() { planned_only E20 "per-class/tiny/failure-case analysis" "${PY}" "${ROOT}/scripts/e20_failure_case_analysis.py" --model "${FINAL_W}" --out-dir "${ROOT}/results/val/e20_failure_analysis" --dry-run; }
 e21() { planned_only E21 "locked test-set final evaluation; do not run during tuning" "${PY}" "${ROOT}/scripts/e21_locked_test_eval.py" --protocol DroneVehicle-DarkSmall-v1 --models E2 E4 E10 FINAL --dry-run; }
-e22_1() { planned_only E22_1 "collect FP from E2/E4/E10-best on dark/low-contrast" "${PY}" "${ROOT}/scripts/e22_hard_negative_mining.py" --step collect-fp --models E2="${E2_W}" E10="${E10_W}" --subsets dark low-contrast --dry-run; }
-e22_2() { planned_only E22_2 "classify FP taxonomy" "${PY}" "${ROOT}/scripts/e22_hard_negative_mining.py" --step classify-fp --taxonomy thermal_hotspot lamp edge background_vehicle_like registration_error --dry-run; }
-e22_3() { planned_only E22_3 "hard negative 2x sampling" "${PY}" "${ROOT}/scripts/e22_hard_negative_mining.py" --step train --multiplier 2 --out-yaml "${ROOT}/generated_data/e22_3_hard_negative_2x.yaml" --dry-run; }
-e22_4() { planned_only E22_4 "hard negative 3x sampling" "${PY}" "${ROOT}/scripts/e22_hard_negative_mining.py" --step train --multiplier 3 --out-yaml "${ROOT}/generated_data/e22_4_hard_negative_3x.yaml" --dry-run; }
-e22_5() { planned_only E22_5 "hard negative + CEBS" "${PY}" "${ROOT}/scripts/e22_hard_negative_mining.py" --step train --multiplier 2 --cebs --out-yaml "${ROOT}/generated_data/e22_5_hard_negative_cebs.yaml" --dry-run; }
-e23_1() { planned_only E23_1 "object-level evaluator implementation smoke" "${PY}" "${ROOT}/scripts/e23_object_level_subset_eval.py" --subsets dark-small tiny low-contrast --model "${FINAL_W}" --dry-run; }
-e23_2() { planned_only E23_2 "export object-level metrics" "${PY}" "${ROOT}/scripts/e23_object_level_subset_eval.py" --subsets dark-small tiny low-contrast --metrics AP Recall --out "${ROOT}/results/val/e23_object_level_metrics.json" --dry-run; }
-e23_3() { planned_only E23_3 "compare image-level and object-level subset metrics" "${PY}" "${ROOT}/scripts/e23_compare_metric_scopes.py" --results-val "${ROOT}/results/val" --dry-run; }
+e22_1() { echo "# E22_1: train-split hard negative list export; background_far only is train-allowed"; run_logged E22_1 "${PY}" "${ROOT}/scripts/e22_hard_negative_mining.py" --mode lists --taxonomy-csv "${ROOT}/results/val/e22_0_train_hard_negative_taxonomy/hard_negative_list.csv" --split train --out-dir "${ROOT}/results/val/e22_1_train_hard_negative_lists"; }
+e22_2a() {
+  echo "# E22_2a: E6 + train background_far HN 1.5x, S6 reviewed"
+  runner_exp E22_2a
+  object_eval_e6_after E22_2a \
+    "${ROOT}/results/val/e22_2a_e6_background_far_hn15_gpu0_b48/weights/best.pt" \
+    "${ROOT}/results/val/e22_2a_e6_background_far_hn15_val/required_metrics.json" \
+    "${ROOT}/results/val/e23_e22_2a_hn15_object_level" \
+    "${DEVICE_SINGLE}" 48
+}
+e22_2b() {
+  echo "# E22_2b: E6 + train background_far HN 2x, S6 reviewed"
+  runner_exp E22_2b
+  object_eval_e6_after E22_2b \
+    "${ROOT}/results/val/e22_2b_e6_background_far_hn2/weights/best.pt" \
+    "${ROOT}/results/val/e22_2b_e6_background_far_hn2_val/required_metrics.json" \
+    "${ROOT}/results/val/e23_e22_2b_hn2_object_level" \
+    "${DEVICE_SINGLE}" 48
+}
+e22_2() { planned_only E22_2 "legacy alias; S6 uses exact E22_2a/E22_2b entries only" "${PY}" "${RUNNER}" list E22_2a E22_2b; }
+e22_3() { planned_only E22_3 "not allowed in S6: no hard-negative 3x/5x/all-HN expansion" "${PY}" "${RUNNER}" list E22_2a E22_2b; }
+e22_4() { planned_only E22_4 "not allowed in S6: no hard-negative 3x/5x/all-HN expansion" "${PY}" "${RUNNER}" list E22_2a E22_2b; }
+e22_5() { planned_only E22_5 "not allowed in S6: no CEBS + HN combo after E14_3/E22_2a/E22_2b review" "${PY}" "${RUNNER}" list E14_3 E22_2a E22_2b; }
+e23() { echo "# E23: E6 object-level evaluator"; run_logged E23 "${PY}" "${ROOT}/scripts/e23_object_level_subset_eval.py" --weights "${E6_W}" --validator e6 --mode rgb_ir --split val --image-metrics "${ROOT}/results/val/e6_feature_fusion_multiscale_val/required_metrics.json" --imgsz 640 --batch "${BATCH_OBJECT}" --workers "${WORKERS_OBJECT}" --device "${DEVICE_SINGLE}" --out-dir "${ROOT}/results/val/e23_object_level_evaluator"; }
+e23_1() { echo "# E23_1: object-level subset build smoke"; run_or_print "${PY}" "${ROOT}/scripts/e23_object_level_subset_eval.py" --weights "${E6_W}" --validator e6 --mode rgb_ir --split val --imgsz 640 --batch "${BATCH_OBJECT}" --workers "${WORKERS_OBJECT}" --device "${DEVICE_SINGLE}" --out-dir "${ROOT}/results/val/e23_object_level_evaluator_smoke" --build-only; }
+e23_2() { e23; }
+e23_3() { echo "# E23_3: compare image-level and object-level metrics"; run_or_print "${PY}" "${ROOT}/scripts/e23_compare_metric_scopes.py" --results-val "${ROOT}/results/val" --out-dir "${ROOT}/results/val/e23_metric_scope_comparison"; }
+e24_0() { planned_only E24_0 "blocked_no_valid_candidate: no image/object-valid candidate to freeze; E24 CLI is still a demo placeholder" "${PY}" "${ROOT}/scripts/e24_freeze_repro_config.py" --step freeze-configs --out-dir "${ROOT}/configs/frozen" --dry-run; }
 e24_1() { planned_only E24_1 "freeze final configs" "${PY}" "${ROOT}/scripts/e24_freeze_repro_config.py" --step freeze-configs --out-dir "${ROOT}/configs/frozen" --dry-run; }
 e24_2() { planned_only E24_2 "audit config paths, commit, seed, weights, results" "${PY}" "${ROOT}/scripts/e24_freeze_repro_config.py" --step audit --results-val "${ROOT}/results/val" --dry-run; }
 e24_3() { planned_only E24_3 "verify leaderboard vs result dirs" "${PY}" "${ROOT}/scripts/e24_freeze_repro_config.py" --step verify-leaderboard --leaderboard "${ROOT}/results/val/dark_small_experiment_leaderboard.csv" --dry-run; }
@@ -189,15 +304,15 @@ E9_1 E9_2
 E10_1 E10_2 E10_3 E10_4
 E11_1 E11_2 E11_3
 E12_1 E12_1b E12_2 E12_3 E12_4
-E13_1 E13_2 E13_3 E13_4 E13_5 E13_6
+E13_1 E13_2 E13_3 E13_3b_light E13_4 E13_5 E13_6
 E14_1 E14_2 E14_3 E14_4
 E15_1 E15_2 E15_3 E15_4
 E16_1 E16_2 E16_3 E16_4 E16_5
 E17_1 E17_2 E17_3
-E18 E19 E20 E21
-E22_1 E22_2 E22_3 E22_4 E22_5
-E23_1 E23_2 E23_3
-E24_1 E24_2 E24_3
+E18_check E18 E19 E20 E21
+E22_1 E22_2a E22_2b E22_2 E22_3 E22_4 E22_5
+E23 E23_1 E23_2 E23_3
+E24_0 E24_1 E24_2 E24_3
 EOF
 }
 
@@ -207,6 +322,7 @@ Usage: scripts/train/run_dark_small_experiment_demos.sh {list|all|EXPERIMENT_ID.
 
 Default: dry-run. Set RUN_MODE=run for implemented experiments.
 Current route: do not run E21/test-set or strong-model E15 during tuning.
+Use S6 to print the current-stage demo sequence.
 EOF
 }
 
@@ -222,15 +338,16 @@ run_id() {
     e10_1) e10_1 ;; e10_2) e10_2 ;; e10_3) e10_3 ;; e10_4) e10_4 ;;
     e11_1) e11_1 ;; e11_2) e11_2 ;; e11_3) e11_3 ;;
     e12_1) e12_1 ;; e12_1b) e12_1b ;; e12_2) e12_2 ;; e12_3) e12_3 ;; e12_4) e12_4 ;;
-    e13_1) e13_1 ;; e13_2) e13_2 ;; e13_3) e13_3 ;; e13_4) e13_4 ;; e13_5) e13_5 ;; e13_6) e13_6 ;;
+    e13_1) e13_1 ;; e13_2) e13_2 ;; e13_3) e13_3 ;; e13_3b_light) e13_3b_light ;; e13_4) e13_4 ;; e13_5) e13_5 ;; e13_6) e13_6 ;;
     e14_1) e14_1 ;; e14_2) e14_2 ;; e14_3) e14_3 ;; e14_4) e14_4 ;;
     e15_1) e15_1 ;; e15_2) e15_2 ;; e15_3) e15_3 ;; e15_4) e15_4 ;;
     e16_1) e16_1 ;; e16_2) e16_2 ;; e16_3) e16_3 ;; e16_4) e16_4 ;; e16_5) e16_5 ;;
     e17_1) e17_1 ;; e17_2) e17_2 ;; e17_3) e17_3 ;;
-    e18) e18 ;; e19) e19 ;; e20) e20 ;; e21) e21 ;;
-    e22_1) e22_1 ;; e22_2) e22_2 ;; e22_3) e22_3 ;; e22_4) e22_4 ;; e22_5) e22_5 ;;
-    e23_1) e23_1 ;; e23_2) e23_2 ;; e23_3) e23_3 ;;
-    e24_1) e24_1 ;; e24_2) e24_2 ;; e24_3) e24_3 ;;
+    e18_check) e18_check ;; e18) e18 ;; e19) e19 ;; e20) e20 ;; e21) e21 ;;
+    e22_1) e22_1 ;; e22_2a) e22_2a ;; e22_2b) e22_2b ;; e22_2) e22_2 ;; e22_3) e22_3 ;; e22_4) e22_4 ;; e22_5) e22_5 ;;
+    e23) e23 ;; e23_1) e23_1 ;; e23_2) e23_2 ;; e23_3) e23_3 ;;
+    e24_0) e24_0 ;; e24_1) e24_1 ;; e24_2) e24_2 ;; e24_3) e24_3 ;;
+    s6) s6_current ;;
     *) echo "Unknown experiment ID: $1" >&2; usage >&2; exit 2 ;;
   esac
 }
