@@ -27,7 +27,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("--mode", type=str, default="rgb_ir", choices=["rgb", "ir", "rgb_ir"])
     parser.add_argument("--base", type=str, default="e6", help="Compatibility flag for demo scripts; E13 currently derives from E6.")
-    parser.add_argument("--loss", type=str, default="scale-aware", choices=["baseline", "scale-aware", "center-aware", "scale-center-aware"])
+    parser.add_argument("--loss", type=str, default="scale-aware", choices=["baseline", "scale-aware", "center-aware", "scale-center-aware", "class-confusion-cls"])
     parser.add_argument("--model", type=str, default="/mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt")
     parser.add_argument("--data-rgb", type=str, default="/mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/dronevehicle_resplit_rgb.yaml")
     parser.add_argument("--data-rgb-ir", type=str, default="/mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/dronevehicle_resplit_rgb_ir.yaml")
@@ -57,6 +57,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dark-threshold", type=float, default=33.50320816040039)
     parser.add_argument("--low-contrast-threshold", type=float, default=0.08425217866897583)
     parser.add_argument("--contrast-ring-scale", type=float, default=1.6)
+    parser.add_argument("--class-confusion-map", default=None)
+    parser.add_argument("--class-confusion-cls-gain", type=float, default=1.0)
     parser.add_argument("--small-threshold-source", default=None, help="Accepted for demo compatibility; fixed --small-px is used unless explicitly changed.")
     parser.add_argument("--validate-out", default=None, help="Accepted for demo compatibility; validation is handled by e13_val_tiny_aware_loss.py.")
     parser.add_argument("--dry-run", action="store_true")
@@ -113,12 +115,35 @@ def main() -> None:
         "dark_threshold": args.dark_threshold,
         "low_contrast_threshold": args.low_contrast_threshold,
         "contrast_ring_scale": args.contrast_ring_scale,
+        "class_confusion_map": args.class_confusion_map,
+        "class_confusion_cls_gain": args.class_confusion_cls_gain,
         "overrides": overrides,
     }
     if args.dry_run:
         print(json.dumps(payload, ensure_ascii=False, indent=2), flush=True)
         return
     print(json.dumps(payload, ensure_ascii=False, indent=2), flush=True)
+
+    is_seedfix_e25 = args.name.startswith("seedfix_e25_0_")
+    allow_any_device = os.environ.get("VSD_ALLOW_SEEDFIX_E25_ANY_DEVICE") == "1"
+    if is_seedfix_e25 and str(args.device) != "1" and not allow_any_device:
+        print(
+            json.dumps(
+                {
+                    "script": Path(__file__).name,
+                    "status": "blocked_duplicate_seedfix_e25_owner",
+                    "time": datetime.now().isoformat(timespec="seconds"),
+                    "name": args.name,
+                    "device": args.device,
+                    "owner": "GPU1 split queue",
+                    "reason": "seedfix E25_0 training is assigned to GPU1 to avoid duplicate writes",
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            flush=True,
+        )
+        raise SystemExit(75)
 
     trainer = E13DetectionTrainer(overrides=overrides)
     trainer.set_fusion_mode(args.mode)
@@ -137,6 +162,8 @@ def main() -> None:
         dark_threshold=args.dark_threshold,
         low_contrast_threshold=args.low_contrast_threshold,
         contrast_ring_scale=args.contrast_ring_scale,
+        class_confusion_map=args.class_confusion_map,
+        class_confusion_cls_gain=args.class_confusion_cls_gain,
     )
     trainer.train()
 

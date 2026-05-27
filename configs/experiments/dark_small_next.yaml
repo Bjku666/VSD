@@ -512,10 +512,11 @@ experiments:
   model: /mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt
   project: /mnt/disk2/lhr/VSD/results/val
   name: e18_5_e13_3b_seed1
-  result_dir: /mnt/disk2/lhr/VSD/results/val/e18_5_e13_3b_seed1_val
-  metrics: /mnt/disk2/lhr/VSD/results/val/e18_5_e13_3b_seed1_val/required_metrics.json
-  status: done
-  log: /mnt/disk2/lhr/VSD/results/val/logs/e18_5_e13_3b_seed1_b16w4_gpu0_20260523.log
+  result_dir: deleted
+  metrics: deleted
+  status: deleted_invalid_old_seed_logic
+  log: deleted
+  note: Old multi-seed output/log deleted after seed logic audit; use seedfix_e13_3b_seed1_seedfix_b48_20260527 rerun.
 - id: E18_6
   stage: E18
   kind: e13
@@ -535,18 +536,18 @@ experiments:
   model: /mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt
   project: /mnt/disk2/lhr/VSD/results/val
   name: e18_6_e13_3b_seed2_rerun
-  result_dir: /mnt/disk2/lhr/VSD/results/val/e18_6_e13_3b_seed2_rerun_val
-  metrics: /mnt/disk2/lhr/VSD/results/val/e18_6_e13_3b_seed2_rerun_val/required_metrics.json
-  status: done
-  log: /mnt/disk2/lhr/VSD/results/val/logs/e18_6_e13_3b_seed2_rerun_gpu1_20260524_143858.log
-  note: Seed=2 rerun completed after E18_check found duplicate metrics in the prior seed=2 run.
+  result_dir: deleted
+  metrics: deleted
+  status: deleted_invalid_old_seed_logic
+  log: deleted
+  note: Old multi-seed output/log deleted after seed logic audit; use seedfix_e13_3b_seed2_seedfix_b48_20260527 rerun.
 - id: E18_check
   stage: S6
   kind: planned
   title: E13_3b seed integrity check
-  result_dir: /mnt/disk2/lhr/VSD/results/val/e18_check_e13_3b_seed_integrity
-  status: done_invalid
-  note: E18_5/E18_6 args and weight hashes differ, but key validation metrics are bit-identical; rerun seed=2 before using multi-seed means.
+  result_dir: deleted
+  status: deleted_invalid_old_seed_logic
+  note: Old seed-integrity report deleted after corrected seedfix rerun was launched.
 - id: E22_1
   stage: S6
   kind: planned
@@ -721,3 +722,132 @@ experiments:
   result_dir: /mnt/disk2/lhr/VSD/results/val/e24_0_e13_3b_candidate_freeze
   status: blocked_no_valid_candidate
   note: No image/object-valid candidate is available to freeze; scripts/e24_freeze_repro_config.py is still a demo placeholder.
+- id: E25_0
+  stage: S6.5
+  kind: planned
+  title: E13_3b multi-seed valid rerun
+  result_dir: /mnt/disk2/lhr/VSD/results/val/seedfix_e25_0_e13_3b_seed{42,43,44}_seedfix_b48_20260527
+  status: rerun_seedfix_gpu0_b48
+  note: Old E25_0 seed42/43/44 output/logs were deleted after seed_pipeline_failed audit. Corrected batch48 GPU0 rerun is active under seedfix_* directories.
+- id: E25_1
+  stage: S6.5
+  kind: planned
+  title: E6 calibration / threshold / NMS sweep
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e25_1_e6_calibration_sweep
+  metrics: /mnt/disk2/lhr/VSD/results/val/e25_1_e6_calibration_sweep/required_metrics.json
+  status: done_limited_cached_predictions
+  note: Offline train/val operating-point sweep over cached E6 predictions. Threshold, class-wise, size-wise and illumination-wise rules were evaluated; NMS is limited to cached IoU=0.70 because no new inference was run. Outputs include calibration_grid.csv, pareto_ap_obj_vs_fppi_dark.png, best_operating_points.json and classwise_thresholds.json; object AP plot uses cached dark-small object AP50 proxy.
+- id: E25_1_full
+  stage: S6.5
+  kind: planned
+  title: E6 full re-inference calibration / threshold / NMS sweep
+  model: /mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e25_1_full_e6_calibration_sweep
+  status: pending_full_reinference
+  conf_grid: [0.15, 0.20, 0.25, 0.30, 0.35, 0.40]
+  nms_iou_grid: [0.45, 0.50, 0.55, 0.60, 0.65, 0.70]
+  threshold_modes: [global, class_wise, size_wise, illumination_wise]
+  outputs:
+  - calibration_grid.csv
+  - pareto_ap_obj_vs_fppi_dark.png
+  - best_operating_points.json
+  - classwise_thresholds.json
+  note: First-batch S6.5 task. Must re-run E6 inference rather than use cached predictions, and must report both image-level and object-level metrics. Passing candidate gate requires AP_dark-small_object >= 0.098, FP/image < E6, FPPI_dark < E6 and FPPI_low-contrast < E6.
+- id: E26_1
+  stage: S6.5
+  kind: planned
+  title: class-wise threshold calibration
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e26_1_classwise_threshold_calibration
+  metrics: /mnt/disk2/lhr/VSD/results/val/e26_1_classwise_threshold_calibration/required_metrics.json
+  status: done_limited_cached_predictions
+  note: Offline class-wise threshold calibration on E6 cached train/val predictions; class_confusion FP, per-class cached AP50, FP/image, FPPI_dark and dark-small object cached AP50/precision/recall are reported.
+- id: E26_1_full
+  stage: S6.5
+  kind: planned
+  title: class-wise threshold full re-inference validation
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e26_1_full_classwise_threshold_calibration
+  status: pending_after_E25_1_full
+  source_operating_point: /mnt/disk2/lhr/VSD/results/val/e26_1_classwise_threshold_calibration/classwise_thresholds.json
+  default_thresholds:
+    car: 0.40
+    truck: 0.50
+    bus: 0.50
+    van: 0.45
+    freight_car: 0.45
+  acceptance:
+    max_fp_per_image: 1.20
+    max_fppi_dark: 1.90
+    min_ap_dark_small_object: 0.098
+  note: First-batch S6.5 task. Validate the cached class-wise threshold signal on full re-inference outputs before any second-batch training.
+- id: E26_2a
+  stage: S6.5
+  kind: e13
+  title: class_confusion classification-only loss 1.25x
+  mode: rgb_ir
+  loss: class-confusion-cls
+  class_confusion_map: /mnt/disk2/lhr/VSD/results/val/e22_0_train_hard_negative_taxonomy/hard_negative_list.csv
+  class_confusion_cls_gain: 1.25
+  imgsz: 640
+  batch: 48
+  workers: 8
+  device: '1'
+  seed: 0
+  model: /mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt
+  project: /mnt/disk2/lhr/VSD/results/val
+  name: e26_2a_class_confusion_cls125
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e26_2a_class_confusion_cls125_val
+  metrics: /mnt/disk2/lhr/VSD/results/val/e26_2a_class_confusion_cls125_val/required_metrics.json
+  status: paused_second_batch
+  note: Second-batch candidate. Classification BCE only; bbox/DFL/assignment unchanged. Class-confusion source is train split E6 taxonomy only; class_confusion is not treated as background. Do not rerun until E25_0, E25_1_full and E26_1_full have been reviewed.
+- id: E26_2b
+  stage: S6.5
+  kind: e13
+  title: class_confusion classification-only loss 1.50x
+  mode: rgb_ir
+  loss: class-confusion-cls
+  class_confusion_map: /mnt/disk2/lhr/VSD/results/val/e22_0_train_hard_negative_taxonomy/hard_negative_list.csv
+  class_confusion_cls_gain: 1.50
+  imgsz: 640
+  batch: 16
+  workers: 4
+  device: '0'
+  seed: 0
+  model: /mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt
+  project: /mnt/disk2/lhr/VSD/results/val
+  name: e26_2b_class_confusion_cls150
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e26_2b_class_confusion_cls150_val
+  metrics: /mnt/disk2/lhr/VSD/results/val/e26_2b_class_confusion_cls150_val/required_metrics.json
+  status: paused_after_E26_2a
+  note: Run only if E26_2a does not reduce object-level dark-small AP materially. Classification BCE only; bbox/DFL/assignment unchanged.
+- id: E27_1
+  stage: S6.5
+  kind: planned
+  title: metadata verifier
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e27_1_metadata_verifier
+  metrics: /mnt/disk2/lhr/VSD/results/val/e27_1_metadata_verifier/required_metrics.json
+  status: done_limited_cached_predictions
+  note: Offline logistic metadata verifier over cached E6 proposals. Uses train TP vs background_far negatives only, excludes class_confusion/localization_error from negative training, and reports score_final=score_E6*p_object on val cached predictions.
+- id: E27_1_full
+  stage: S6.5
+  kind: planned
+  title: metadata verifier full re-inference validation
+  result_dir: /mnt/disk2/lhr/VSD/results/val/e27_1_full_metadata_verifier
+  status: paused_second_batch
+  proposal_generator: E6
+  feature_set:
+  - bbox_area
+  - aspect_ratio
+  - e6_confidence
+  - pred_class
+  - brightness
+  - local_contrast
+  - rgb_crop_mean
+  - ir_crop_mean
+  - rgb_ir_response_difference
+  - distance_to_image_border
+  - is_dark
+  - is_low_contrast
+  - is_tiny
+  negative_policy: background_far_only
+  score: score_final = score_E6 * p_object
+  note: Second-batch candidate. Requires fresh E6 train/val predictions; cached E27_1 is only a preliminary signal. Class_confusion and localization_error must not be used as background negatives.

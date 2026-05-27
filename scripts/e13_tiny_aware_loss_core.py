@@ -8,6 +8,8 @@ objects, keeping the ablation focused on loss behavior rather than capacity.
 
 from __future__ import annotations
 
+import csv
+import json
 import os
 import sys
 from pathlib import Path
@@ -26,6 +28,35 @@ if scripts_dir and scripts_dir not in sys.path:
     sys.path.insert(0, scripts_dir)
 
 from e6_feature_fusion_multiscale_core import E6DetectionTrainer, E6MultiScaleFusionModel
+
+
+def _load_class_confusion_map(path: str | None) -> dict[str, set[int]]:
+    if not path:
+        return {}
+    source = Path(path)
+    if not source.exists():
+        raise FileNotFoundError(f"class-confusion map not found: {source}")
+    mapping: dict[str, set[int]] = {}
+    if source.suffix.lower() == ".json":
+        raw = json.loads(source.read_text(encoding="utf-8"))
+        if not isinstance(raw, dict):
+            raise ValueError(f"invalid class-confusion JSON map: {source}")
+        for stem, values in raw.items():
+            if isinstance(values, list):
+                mapping[str(stem)] = {int(v) for v in values}
+        return mapping
+    with source.open("r", encoding="utf-8", newline="") as f:
+        for row in csv.DictReader(f):
+            if row.get("taxonomy") != "class_confusion":
+                continue
+            if row.get("model") and row.get("model") != "E6":
+                continue
+            stem = row.get("stem") or Path(row.get("image", "")).stem
+            nearest = row.get("nearest_gt_class_id")
+            if not stem or nearest in {None, ""}:
+                continue
+            mapping.setdefault(stem, set()).add(int(float(nearest)))
+    return mapping
 
 
 class ScaleAwareBboxLoss(nn.Module):
@@ -204,8 +235,12 @@ class ScaleAwareDetectionLoss(v8DetectionLoss):
         dark_threshold: float = 33.50320816040039,
         low_contrast_threshold: float = 0.08425217866897583,
         contrast_ring_scale: float = 1.6,
+        class_confusion_map: str | None = None,
+        class_confusion_cls_gain: float = 1.0,
     ):
         super().__init__(model, tal_topk=tal_topk, tal_topk2=tal_topk2)
+        self.class_confusion_targets = _load_class_confusion_map(class_confusion_map)
+        self.class_confusion_cls_gain = float(class_confusion_cls_gain)
         self.bbox_loss = ScaleAwareBboxLoss(
             self.reg_max,
             small_px=small_px,
@@ -287,7 +322,7 @@ class ScaleAwareDetectionLoss(v8DetectionLoss):
         small_area = self.bbox_loss.small_px * self.bbox_loss.small_px
         tiny_area = self.bbox_loss.tiny_px * self.bbox_loss.tiny_px
         for b in range(gt_bboxes.shape[0]):
-            valid = mask_gt[b, :, 0]
+            valid = mask_gt[b, :, 0].bool()
             if not valid.any():
                 continue
             for j in torch.where(valid)[0].tolist():
@@ -301,6 +336,30 @@ class ScaleAwareDetectionLoss(v8DetectionLoss):
                 contrast = self._box_contrast(gray[b], box.detach(), self.bbox_loss.contrast_ring_scale)
                 is_low_contrast = contrast is not None and bool((contrast <= self.bbox_loss.low_contrast_threshold).item())
                 scope[b, j] = bool(is_tiny or is_dark_small or is_low_contrast)
+        return scope
+
+    def _class_confusion_gt_mask(
+        self,
+        batch: dict[str, Any],
+        gt_labels: torch.Tensor,
+        mask_gt: torch.Tensor,
+    ) -> torch.Tensor | None:
+        if self.class_confusion_cls_gain <= 1.0 or not self.class_confusion_targets:
+            return None
+        im_files = batch.get("im_file") or batch.get("im_files")
+        if im_files is None:
+            return None
+        scope = torch.zeros(gt_labels.shape[:2], device=self.device, dtype=torch.bool)
+        for b, im_file in enumerate(im_files):
+            classes = self.class_confusion_targets.get(Path(str(im_file)).stem)
+            if not classes:
+                continue
+            valid = mask_gt[b, :, 0].bool()
+            labels = gt_labels[b, :, 0].long()
+            cls_mask = torch.zeros_like(valid, dtype=torch.bool)
+            for cls_id in classes:
+                cls_mask |= labels.eq(int(cls_id))
+            scope[b] = valid & cls_mask
         return scope
 
     def get_assigned_targets_and_loss(self, preds: dict[str, torch.Tensor], batch: dict[str, Any]) -> tuple:
@@ -333,7 +392,17 @@ class ScaleAwareDetectionLoss(v8DetectionLoss):
         )
 
         target_scores_sum = max(target_scores.sum(), 1)
-        loss[1] = self.bce(pred_scores, target_scores.to(dtype)).sum() / target_scores_sum
+        cls_loss = self.bce(pred_scores, target_scores.to(dtype))
+        class_confusion_gt = self._class_confusion_gt_mask(batch, gt_labels, mask_gt)
+        if class_confusion_gt is not None:
+            gather_idx = target_gt_idx.clamp(min=0, max=max(class_confusion_gt.shape[1] - 1, 0))
+            class_confusion_anchor = class_confusion_gt.gather(1, gather_idx) & fg_mask
+            positive_cls = target_scores > 0
+            gain = torch.as_tensor(self.class_confusion_cls_gain, device=self.device, dtype=cls_loss.dtype)
+            cls_weight = torch.where(class_confusion_anchor.unsqueeze(-1) & positive_cls, gain, torch.ones_like(cls_loss))
+            loss[1] = (cls_loss * cls_weight).sum() / target_scores_sum
+        else:
+            loss[1] = cls_loss.sum() / target_scores_sum
 
         target_scope_mask = None
         if gt_scope is not None:
@@ -383,6 +452,8 @@ class E13TinyAwareFusionModel(E6MultiScaleFusionModel):
         dark_threshold: float = 33.50320816040039,
         low_contrast_threshold: float = 0.08425217866897583,
         contrast_ring_scale: float = 1.6,
+        class_confusion_map: str | None = None,
+        class_confusion_cls_gain: float = 1.0,
         **kwargs,
     ):
         self.loss_mode = str(loss_mode)
@@ -398,12 +469,14 @@ class E13TinyAwareFusionModel(E6MultiScaleFusionModel):
         self.dark_threshold = float(dark_threshold)
         self.low_contrast_threshold = float(low_contrast_threshold)
         self.contrast_ring_scale = float(contrast_ring_scale)
+        self.class_confusion_map = class_confusion_map
+        self.class_confusion_cls_gain = float(class_confusion_cls_gain)
         super().__init__(*args, **kwargs)
 
     def init_criterion(self):
         if self.loss_mode in {"baseline", "none"}:
             return super().init_criterion()
-        supported = {"scale-aware", "center-aware", "scale-center-aware"}
+        supported = {"scale-aware", "center-aware", "scale-center-aware", "class-confusion-cls"}
         if self.loss_mode not in supported:
             raise ValueError(f"Unsupported E13 loss mode: {self.loss_mode}")
         return ScaleAwareDetectionLoss(
@@ -421,6 +494,8 @@ class E13TinyAwareFusionModel(E6MultiScaleFusionModel):
             dark_threshold=self.dark_threshold,
             low_contrast_threshold=self.low_contrast_threshold,
             contrast_ring_scale=self.contrast_ring_scale,
+            class_confusion_map=self.class_confusion_map,
+            class_confusion_cls_gain=self.class_confusion_cls_gain,
         )
 
 
@@ -442,6 +517,8 @@ class E13DetectionTrainer(E6DetectionTrainer):
         self.dark_threshold = 33.50320816040039
         self.low_contrast_threshold = 0.08425217866897583
         self.contrast_ring_scale = 1.6
+        self.class_confusion_map = None
+        self.class_confusion_cls_gain = 1.0
 
     def set_loss_config(
         self,
@@ -459,6 +536,8 @@ class E13DetectionTrainer(E6DetectionTrainer):
         dark_threshold: float = 33.50320816040039,
         low_contrast_threshold: float = 0.08425217866897583,
         contrast_ring_scale: float = 1.6,
+        class_confusion_map: str | None = None,
+        class_confusion_cls_gain: float = 1.0,
     ) -> None:
         self.loss_mode = str(loss_mode)
         self.small_px = float(small_px)
@@ -473,6 +552,8 @@ class E13DetectionTrainer(E6DetectionTrainer):
         self.dark_threshold = float(dark_threshold)
         self.low_contrast_threshold = float(low_contrast_threshold)
         self.contrast_ring_scale = float(contrast_ring_scale)
+        self.class_confusion_map = class_confusion_map
+        self.class_confusion_cls_gain = float(class_confusion_cls_gain)
 
     def get_model(self, cfg: str | dict | None = None, weights: str | nn.Module | None = None, verbose: bool = True):
         model = E13TinyAwareFusionModel(
@@ -494,6 +575,8 @@ class E13DetectionTrainer(E6DetectionTrainer):
             dark_threshold=self.dark_threshold,
             low_contrast_threshold=self.low_contrast_threshold,
             contrast_ring_scale=self.contrast_ring_scale,
+            class_confusion_map=self.class_confusion_map,
+            class_confusion_cls_gain=self.class_confusion_cls_gain,
         )
         if weights is not None:
             has_trained_ir_branch = self._weights_include_ir_branch(weights)

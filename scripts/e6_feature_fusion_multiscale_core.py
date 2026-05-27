@@ -18,13 +18,14 @@ import numpy as np
 import torch
 import torch.nn as nn
 from ultralytics.data import build_yolo_dataset
+from ultralytics.data import build as data_build
 from ultralytics.data.dataset import YOLODataset
 from ultralytics.data.utils import check_det_dataset
 from ultralytics.models.yolo.detect import DetectionTrainer
 from ultralytics.nn.modules import Conv
 from ultralytics.nn.tasks import DetectionModel
-from ultralytics.utils import RANK
-from ultralytics.utils.torch_utils import unwrap_model
+from ultralytics.utils import LOGGER, RANK
+from ultralytics.utils.torch_utils import torch_distributed_zero_first, unwrap_model
 
 
 class PairedYOLODataset(torch.utils.data.Dataset):
@@ -333,3 +334,57 @@ class E6DetectionTrainer(DetectionTrainer):
             stride=gs,
         )
         return PairedYOLODataset(rgb_dataset, ir_dataset)
+
+    def get_dataloader(self, dataset_path: str, batch_size: int = 16, rank: int = 0, mode: str = "train"):
+        assert mode in {"train", "val"}, f"Mode must be 'train' or 'val', not {mode}."
+        with torch_distributed_zero_first(rank):
+            dataset = self.build_dataset(dataset_path, mode, batch_size)
+        shuffle = mode == "train"
+        if getattr(dataset, "rect", False) and shuffle and not np.all(dataset.batch_shapes == dataset.batch_shapes[0]):
+            LOGGER.warning("'rect=True' is incompatible with DataLoader shuffle, setting shuffle=False")
+            shuffle = False
+        return self._build_seeded_dataloader(
+            dataset,
+            batch=batch_size,
+            workers=self.args.workers if mode == "train" else self.args.workers * 2,
+            shuffle=shuffle,
+            rank=rank,
+            drop_last=self.args.compile and mode == "train",
+        )
+
+    def _build_seeded_dataloader(
+        self,
+        dataset,
+        batch: int,
+        workers: int,
+        shuffle: bool = True,
+        rank: int = -1,
+        drop_last: bool = False,
+        pin_memory: bool = True,
+    ):
+        batch = min(batch, len(dataset))
+        nd = torch.cuda.device_count()
+        nw = min((data_build.os.cpu_count() or 1) // max(nd, 1), workers)
+        sampler = (
+            None
+            if rank == -1
+            else data_build.distributed.DistributedSampler(dataset, shuffle=shuffle)
+            if shuffle
+            else data_build.ContiguousDistributedSampler(dataset)
+        )
+        generator = torch.Generator()
+        rank_offset = RANK if RANK != -1 else 0
+        generator.manual_seed(6148914691236517205 + int(self.args.seed) * 1000003 + rank_offset)
+        return data_build.InfiniteDataLoader(
+            dataset=dataset,
+            batch_size=batch,
+            shuffle=shuffle and sampler is None,
+            num_workers=nw,
+            sampler=sampler,
+            prefetch_factor=4 if nw > 0 else None,
+            pin_memory=nd > 0 and pin_memory,
+            collate_fn=getattr(dataset, "collate_fn", None),
+            worker_init_fn=data_build.seed_worker,
+            generator=generator,
+            drop_last=drop_last and len(dataset) % batch != 0,
+        )

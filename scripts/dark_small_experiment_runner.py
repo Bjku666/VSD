@@ -361,6 +361,8 @@ def _fusion_model_steps(manifest: dict[str, Any], exp: dict[str, Any], work_dir:
             ("dark_threshold", "--dark-threshold"),
             ("low_contrast_threshold", "--low-contrast-threshold"),
             ("contrast_ring_scale", "--contrast-ring-scale"),
+            ("class_confusion_map", "--class-confusion-map"),
+            ("class_confusion_cls_gain", "--class-confusion-cls-gain"),
         ):
             if exp_key in exp:
                 train.extend([cli_key, str(exp[exp_key])])

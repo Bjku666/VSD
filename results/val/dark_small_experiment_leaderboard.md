@@ -47,11 +47,21 @@
 | 41 | E14_2 | E6 + CEBS alpha=0.10 | done_not_candidate | 0.837697 | 0.633557 | 0.584201 | 0.753695 | 0.583753 | 0.750458 | 0.505991 | 0.554227 | 0.633506 | 0.098110 | 0.053968 | 0.245152 | 1.238257 | 2.059659 | 1.367276 | 4153919.000000 | 10.199398 | 364.152733 | 817.118652 |
 | 42 | E14_3 | E13_3b-light + CEBS alpha=0.05 | done_not_candidate | 0.831988 | 0.633003 | 0.582084 | 0.743328 | 0.580945 | 0.741902 | 0.502155 | 0.551038 | 0.634111 | 0.087600 | 0.051472 | 0.244494 | 1.307692 | 2.196023 | 1.447346 | 4153919.000000 | 10.199398 | 322.859257 | 801.399902 |
 | 43 | E14_4 | E13_3b-light + CEBS + background_far HN 1.5x | skipped_not_justified |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| 44 | E18_check | E13_3b seed integrity check | done_invalid |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| 45 | E18_5 | E13_3b seed=1 stability | done | 0.836351 | 0.634911 | 0.584575 | 0.758130 | 0.582205 | 0.737565 | 0.506625 | 0.555215 | 0.635295 |  |  |  | 1.351259 | 2.352273 | 1.469974 | 4153919.000000 | 10.199398 | 532.064049 | 769.458008 |
-| 46 | E18_6 | E13_3b seed=2 stability | done | 0.836351 | 0.634911 | 0.584575 | 0.758130 | 0.582205 | 0.737565 | 0.506625 | 0.555215 | 0.635295 |  |  |  | 1.351259 | 2.352273 | 1.469974 | 4153919.000000 | 10.199398 | 458.474096 | 903.580566 |
+| 44 | E18_check | E13_3b seed integrity check | deleted_invalid_old_seed_logic |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 45 | E18_5 | E13_3b seed=1 stability | deleted_invalid_old_seed_logic |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 46 | E18_6 | E13_3b seed=2 stability | deleted_invalid_old_seed_logic |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | 47 | E22_1 | hard negative list build and dedup | done |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | 48 | E22_2a | E6 + train background_far hard negative 1.5x | done_not_candidate | 0.842391 | 0.636090 | 0.588557 | 0.773632 | 0.585765 | 0.785541 | 0.515064 | 0.556958 | 0.638263 | 0.096331 | 0.053752 | 0.248567 | 1.606535 | 2.815341 | 1.785901 | 4153919.000000 | 10.199398 | 368.305485 | 1440.444824 |
 | 49 | E22_2b | E6 + train background_far hard negative 2x | done_not_candidate | 0.839965 | 0.632997 | 0.586340 | 0.743700 | 0.587876 | 0.758282 | 0.521550 | 0.552714 | 0.636456 | 0.095848 | 0.054524 | 0.237566 | 1.562968 | 2.843750 | 1.717145 | 4153919.000000 | 10.199398 | 314.372482 | 2127.324219 |
 | 50 | E23 | object-level evaluator | done |  |  |  |  |  |  |  |  |  | 0.100028 | 0.054049 | 0.246427 |  |  |  |  |  |  |  |
 | 51 | E24_0 | candidate freeze | blocked_no_valid_candidate |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 52 | E25_0 | E13_3b multi-seed valid rerun | seed_pipeline_failed |  |  |  |  |  |  |  |  |  | 0.095015 | 0.052717 | 0.249653 | 1.361470 | 2.278409 |  |  |  |  |  |
+| 53 | E25_1 | E6 calibration / threshold / NMS sweep cached | done_limited_cached_predictions |  |  |  |  |  |  |  |  |  |  |  |  | 1.236896 | 1.934659 | 1.375979 |  |  |  |  |
+| 54 | E25_1_full | E6 full re-inference calibration / threshold / NMS sweep | done_not_candidate |  |  |  |  |  |  |  |  |  | 0.078896 | 0.041289 | 0.220138 | 1.279101 | 2.196023 | 1.420366 |  |  |  |  |
+| 55 | E26_1 | class-wise threshold calibration cached | done_limited_cached_predictions |  |  |  |  |  |  |  |  |  |  |  |  | 1.147720 | 1.781250 |  |  |  |  |  |
+| 56 | E26_1_full | class-wise threshold full re-inference validation | done_not_candidate |  |  |  |  |  |  |  |  |  | 0.066720 | 0.037388 | 0.216065 | 1.147720 | 1.781250 | 1.273281 |  |  |  |  |
+| 57 | E26_2a | class_confusion classification-only loss 1.25x | done_not_candidate | 0.840495 | 0.632659 | 0.581490 | 0.739554 | 0.583874 | 0.760564 | 0.509768 | 0.550148 | 0.634783 | 0.100160 | 0.052999 | 0.243073 | 1.682097 | 2.960227 | 1.847694 | 4153919.000000 | 10.199398 | 360.808467 | 2815.336914 |
+| 58 | E26_2a_run_b48 | class_confusion classification-only loss 1.25x early run | off_plan_started_before_new_gate |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 59 | E26_2b | class_confusion classification-only loss 1.50x | running_gpu1 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 60 | E27_1 | metadata verifier cached | done_limited_cached_predictions |  |  |  |  |  |  |  |  |  |  |  |  | 1.144997 | 1.781250 | 1.291558 |  |  |  |  |
+| 61 | E27_1_full | metadata verifier full re-inference validation | paused_second_batch |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
