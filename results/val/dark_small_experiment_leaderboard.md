@@ -62,6 +62,6 @@
 | 56 | E26_1_full | class-wise threshold full re-inference validation | done_not_candidate |  |  |  |  |  |  |  |  |  | 0.066720 | 0.037388 | 0.216065 | 1.147720 | 1.781250 | 1.273281 |  |  |  |  |
 | 57 | E26_2a | class_confusion classification-only loss 1.25x | done_not_candidate | 0.840495 | 0.632659 | 0.581490 | 0.739554 | 0.583874 | 0.760564 | 0.509768 | 0.550148 | 0.634783 | 0.100160 | 0.052999 | 0.243073 | 1.682097 | 2.960227 | 1.847694 | 4153919.000000 | 10.199398 | 360.808467 | 2815.336914 |
 | 58 | E26_2a_run_b48 | class_confusion classification-only loss 1.25x early run | off_plan_started_before_new_gate |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| 59 | E26_2b | class_confusion classification-only loss 1.50x | running_gpu1 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 59 | E26_2b | class_confusion classification-only loss 1.50x | done_not_candidate | 0.842704 | 0.637563 | 0.589448 | 0.735260 | 0.584492 | 0.779490 | 0.512533 | 0.558463 | 0.640034 |  |  |  | 1.752212 | 3.085227 | 1.936466 | 4153919.000000 | 10.199398 | 219.029754 | 2815.335449 |
 | 60 | E27_1 | metadata verifier cached | done_limited_cached_predictions |  |  |  |  |  |  |  |  |  |  |  |  | 1.144997 | 1.781250 | 1.291558 |  |  |  |  |
-| 61 | E27_1_full | metadata verifier full re-inference validation | paused_second_batch |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 61 | E27_1_full | metadata verifier full re-inference validation | done_not_candidate | 0.829483 |  |  |  |  |  | 0.188110 |  |  |  |  |  | 1.230088 | 1.923295 |  |  |  |  |  |

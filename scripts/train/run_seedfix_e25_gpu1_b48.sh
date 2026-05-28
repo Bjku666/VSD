@@ -82,10 +82,17 @@ train_e25_seed() {
   local name="seedfix_e25_0_e13_3b_seed${seed}_${TAG}"
   local train_dir="$ROOT/results/val/${name}"
   local weights="$train_dir/weights/best.pt"
+  local last_weights="$train_dir/weights/last.pt"
+  local resume_args=()
 
   if seed_outputs_complete "$name"; then
     echo "[seedfix-gpu1] E25_0 seed=${seed} skip complete name=${name}"
     return 0
+  fi
+
+  if [[ -f "$last_weights" ]]; then
+    echo "[seedfix-gpu1] E25_0 seed=${seed} resume from ${last_weights}"
+    resume_args=(--resume-path "$last_weights")
   fi
 
   echo "[seedfix-gpu1] E25_0 seed=${seed} train start name=${name}"
@@ -108,7 +115,8 @@ train_e25_seed() {
     --seed "$seed" \
     --close-mosaic 10 \
     --patience 100 \
-    --exist-ok
+    --exist-ok \
+    "${resume_args[@]}"
   echo "[seedfix-gpu1] E25_0 seed=${seed} train done"
 
   eval_model "$weights" \

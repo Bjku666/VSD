@@ -42,6 +42,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--close-mosaic", type=int, default=10)
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument(
+        "--resume-path",
+        type=str,
+        default="",
+        help="Explicit checkpoint to resume from. Avoids Ultralytics auto-selecting the latest run.",
+    )
     parser.add_argument("--patience", type=int, default=100)
     parser.add_argument("--fraction", type=float, default=1.0)
     parser.add_argument("--exist-ok", action="store_true")
@@ -92,7 +98,7 @@ def main() -> None:
         "patience": int(args.patience),
         "fraction": float(args.fraction),
         "close_mosaic": int(args.close_mosaic),
-        "resume": bool(args.resume),
+        "resume": str(Path(args.resume_path)) if args.resume_path else bool(args.resume),
         "exist_ok": bool(args.exist_ok),
     }
 
@@ -125,8 +131,10 @@ def main() -> None:
     print(json.dumps(payload, ensure_ascii=False, indent=2), flush=True)
 
     is_seedfix_e25 = args.name.startswith("seedfix_e25_0_")
-    allow_any_device = os.environ.get("VSD_ALLOW_SEEDFIX_E25_ANY_DEVICE") == "1"
-    if is_seedfix_e25 and str(args.device) != "1" and not allow_any_device:
+    is_seedfix_e13_3b = args.name.startswith("seedfix_e13_3b_")
+    allow_e25_any_device = os.environ.get("VSD_ALLOW_SEEDFIX_E25_ANY_DEVICE") == "1"
+    allow_e13_local = os.environ.get("VSD_ALLOW_SEEDFIX_E13_3B_LOCAL") == "1"
+    if is_seedfix_e25 and str(args.device) != "1" and not allow_e25_any_device:
         print(
             json.dumps(
                 {
@@ -144,6 +152,24 @@ def main() -> None:
             flush=True,
         )
         raise SystemExit(75)
+    if is_seedfix_e13_3b and not allow_e13_local:
+        print(
+            json.dumps(
+                {
+                    "script": Path(__file__).name,
+                    "status": "blocked_duplicate_seedfix_e13_3b_external_owner",
+                    "time": datetime.now().isoformat(timespec="seconds"),
+                    "name": args.name,
+                    "device": args.device,
+                    "owner": "external server",
+                    "reason": "seedfix E13_3b seed0/1/2 training is assigned to another server to avoid duplicate writes",
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            flush=True,
+        )
+        raise SystemExit(76)
 
     trainer = E13DetectionTrainer(overrides=overrides)
     trainer.set_fusion_mode(args.mode)

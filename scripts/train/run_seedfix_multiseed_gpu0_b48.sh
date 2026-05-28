@@ -172,9 +172,6 @@ for seed in 0 1 2; do
   train_e6_seed "$seed"
 done
 
-for seed in 0 1 2; do
-  train_e13_3b_seed "$seed" "seedfix_e13_3b_seed${seed}_${TAG}"
-done
-
-echo "[seedfix] E25_0 seed42/43/44 are owned by GPU1 split queue; GPU0 queue stops after E13_3b seeds"
-echo "[seedfix] corrected E6/E13_3b reruns complete"
+echo "[seedfix] E13_3b seed0/1/2 are owned by the external server; GPU0 skips local duplicate training"
+echo "[seedfix] E25_0 seed42/43/44 are owned by GPU1 split queue"
+echo "[seedfix] corrected E6 reruns complete"

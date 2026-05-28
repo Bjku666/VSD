@@ -81,7 +81,7 @@ experiments:
   project: /mnt/disk2/lhr/VSD/results/val
   name: e7_3_rgb_only_768
   result_dir: /mnt/disk2/lhr/VSD/results/val/e7_3_rgb_only_768_val
-  status: pending
+  status: running
 - id: E7_4
   stage: E7
   kind: late_fusion
@@ -134,7 +134,7 @@ experiments:
   project: /mnt/disk2/lhr/VSD/results/val
   name: e8_1_ir_only_768_closemosaic20
   result_dir: /mnt/disk2/lhr/VSD/results/val/e8_1_ir_only_768_closemosaic20_val
-  status: pending
+  status: running
 - id: E8_2
   stage: E8
   kind: single

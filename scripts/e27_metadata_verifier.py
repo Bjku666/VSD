@@ -399,8 +399,10 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
 def run(args: argparse.Namespace) -> None:
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    train = load_split("train", ROOT / "results/val/e20_train_for_e22_hn/predictions/E6/labels")
-    val = load_split("val", ROOT / "results/val/e20_0_error_delta_analysis/predictions/E6/labels")
+    train_pred_dir = Path(args.train_pred_dir)
+    val_pred_dir = Path(args.val_pred_dir)
+    train = load_split("train", train_pred_dir)
+    val = load_split("val", val_pred_dir)
     thresholds = load_json(ROOT / "results/dataset_audit/train_thresholds.json")
     tiny_area = float(thresholds.get("object_area_tiny_threshold", 880.0))
     small_area = float(thresholds.get("object_area_small_threshold", 1288.0))
@@ -459,10 +461,8 @@ def run(args: argparse.Namespace) -> None:
     payload = {
         "experiment": "E27_1",
         "source": {
-            "train_predictions": str(ROOT / "results/val/e20_train_for_e22_hn/predictions/E6/labels"),
-            "val_predictions": str(ROOT / "results/val/e20_0_error_delta_analysis/predictions/E6/labels"),
-            "minimum_conf_in_cache": 0.25,
-            "nms_iou_in_cache": 0.70,
+            "train_predictions": str(train_pred_dir),
+            "val_predictions": str(val_pred_dir),
             "negative_policy": "background_far_only; class_confusion/localization_error excluded from negative training",
         },
         "train_counts": train_counts,
@@ -529,6 +529,8 @@ def run(args: argparse.Namespace) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("--out-dir", default=str(ROOT / "results/val/e27_1_metadata_verifier"))
+    parser.add_argument("--train-pred-dir", default=str(ROOT / "results/val/e20_train_for_e22_hn/predictions/E6/labels"))
+    parser.add_argument("--val-pred-dir", default=str(ROOT / "results/val/e20_0_error_delta_analysis/predictions/E6/labels"))
     parser.add_argument("--max-per-class", type=int, default=25000)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--steps", type=int, default=600)

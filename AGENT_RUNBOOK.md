@@ -34,10 +34,10 @@
 | S4 | 小目标头/门控/loss 初筛 | E11_1、E12_1、E13_2、E13_3 | done / partial | 都能降 FP，但 AP_dark-small 低于 E6 |
 | S5 | 诊断优化阶段 | E20_0、E18_1/E18_2、E12_1b、E13_loss_check、E22_0 | done | 找到主要 FP 类型，确认 E13_3b 是当前最佳低误报候选但 AP_dark-small 三 seed 稳定性仍不足 |
 | S6 | 诊断驱动的目标保持型背景抑制阶段 | E23、E18_check、E22_1、E13_3b-light、E22_2a/b、E14、E24_0 | awaiting_review | object-level 口径已落地；target-scoped light loss、train-split HN 和 CEBS 均未形成新候选 |
-| S6.5 | 诊断驱动的分类混淆修正与候选可靠性校准阶段 | corrected multi-seed rerun；E25_1_full、E26_1_full；第二批为 E26_2a/b、E27、E28、E9_1、E16、E19 | seedfix_multiseed_running | 旧 E18/E25_0 多 seed 结果 invalid 且旧产物/日志已删除；GPU0 正在 batch48 重跑 corrected multi-seed；E25_1_full/E26_1_full 已完成但不通过 object-level gate |
+| S6.5 | 诊断驱动的分类混淆修正与候选可靠性校准阶段 | corrected multi-seed rerun；E25_1_full、E26_1_full；第二批为 E26_2a/b、E27、E28、E9_1、E16、E19 | seedfix_multiseed_completed | 旧 E18/E25_0 多 seed 结果 invalid 且旧产物/日志已删除；GPU0/GPU1/E13 外部 seedfix 已完成；E25_1_full/E26_1_full 已完成但不通过 object-level gate；E26_2b 与 E27_1_full 也已完成且不作为候选 |
 | S7 | 论文完整验证阶段 | E15、E16、E18 full、E19、E20 full、E21、E24 full | not started | 暂不进入 test / 强模型 |
 
-当前定位：旧 E18/E25_0 多 seed 结果已判定 invalid，旧输出目录和日志已按用户要求删除。2026-05-27 已修复 E6/E13 trainer 的 dataloader seed 逻辑，并在 GPU0 启动 batch48 corrected multi-seed 队列；日志为 `results/val/logs/seedfix_multiseed_gpu0_b48_20260527.log`。E26_2b 仍在 GPU1 batch48 训练。
+当前定位：旧 E18/E25_0 多 seed 结果已判定 invalid，旧输出目录和日志已按用户要求删除。2026-05-27 已修复 E6/E13 trainer 的 dataloader seed 逻辑，并完成 GPU0/GPU1/外部服务器的 batch48 corrected multi-seed 队列；日志为 `results/val/logs/seedfix_multiseed_gpu0_b48_20260527.log` 与 `results/val/logs/seedfix_e25_gpu1_b48_20260527.log`。E26_2b 也已完成训练与验证收尾。
 
 当前设计符合度：方向符合 S6.5，但原状态表把缓存版 E25_1/E26_1/E27_1 和第二批 E26_2a 写得过于靠前。按新 gate 修正后，缓存结果只能证明“校准/可靠性有信号”，不能写成完整实验结论。
 
@@ -45,14 +45,14 @@
 
 | 当前任务 | 编号 | 是否立即执行 | 说明 |
 | --- | --- | --- | --- |
-| corrected multi-seed 重跑 | seedfix/E18/E25_0 | running_gpu0_b48 | 已修复 dataloader seed 逻辑；GPU0 batch48 顺序重跑 E6 seed0/1/2、E13_3b seed0/1/2、E25_0 seed42/43/44。每个 seed 补齐 validation、object-level、prediction export；旧多 seed 产物/日志已删除，不得再用于均值/方差/候选判断 |
+| corrected multi-seed 重跑 | seedfix/E18/E25_0 | completed_gpu0_gpu1_external_b48 | 已修复 dataloader seed 逻辑；GPU0 batch48 顺序重跑 E6 seed0/1/2、E13_3b seed0/1/2、E25_0 seed42/43/44，E26_2b 也已完成收尾。每个 seed 均已补齐 validation、object-level、prediction export；旧多 seed 产物/日志已删除，不得再用于均值/方差/候选判断 |
 | E6 完整重推理 calibration / threshold / NMS sweep | E25_1_full | done_not_candidate | 完整重推理完成；selected=illumination_wise dark0.35_other0.40 / NMS 0.50，FP/image=1.279101、FPPI_dark=2.196023，但 AP_dark-small_object=0.078896，未通过 gate |
 | class-wise threshold 完整复核 | E26_1_full | done_not_candidate | 完整复核完成；FP/image=1.147720、FPPI_dark=1.781250、class_confusion FP=661，但 AP_dark-small_object=0.066720，未通过 gate |
 | E6 calibration 缓存版 | E25_1 | 已完成，preliminary | 基于 E20 train/val 缓存预测完成；NMS 仅记录缓存 IoU=0.70，object AP 图是 cached dark-small object AP50 proxy，不是完整 AP50-95 |
 | class-wise threshold 缓存版 | E26_1 | 已完成，preliminary | 阈值 car=0.40、truck=0.50、bus=0.50、van=0.45、freight_car=0.45；val FP/image=1.147720、FPPI_dark=1.781250、class_confusion FP=661，只作为 full 版复核依据 |
-| class_confusion classification-only loss 1.25x | E26_2a | 第二批暂停 | 只改分类 loss，不动 bbox/dfl/assignment；不得把 class_confusion 当背景负样本；仅在第一批完成并复核后决定是否重跑 |
-| class_confusion classification-only loss 1.50x | E26_2b | 第二批暂停 | 仅在 E26_2a 有效且 object-level AP 未明显下降后执行 |
-| metadata verifier 完整复核 | E27_1_full | 第二批暂停 | 重新生成 E6 train/val predictions 后做 verifier；缓存版 E27_1 只作为信号，不作为完整结论 |
+| class_confusion classification-only loss 1.25x | E26_2a | done_not_candidate | 只改分类 loss，不动 bbox/dfl/assignment；训练、统一验证和 object-level 已完成；AP_dark-small=0.509768、FP/image=1.682097、FPPI_dark=2.960227 |
+| class_confusion classification-only loss 1.50x | E26_2b | done_not_candidate | 训练、统一验证和 object-level 已完成；AP_dark-small_object 未形成新的候选优势，不再进入第二批执行 |
+| metadata verifier 完整复核 | E27_1_full | done_not_candidate | full re-inference verifier completed; holdout AUC=0.967809, best score_final threshold=0.16, FP/image=1.230088, FPPI_dark=1.923295 |
 | metadata verifier 缓存版 | E27_1 | 已完成，preliminary | train TP vs background_far 负样本，排除 class_confusion/localization_error 负训练；best score_final 阈值 0.03，FP/image=1.144997、FPPI_dark=1.781250 |
 | object-level evaluator | E23 | 已完成 | 输出 dark-small/tiny/low-contrast object-level AP/Recall，并对比 image-level |
 | E13_3b seed 独立性核查 | E18_check | 已完成 | seed=1/2 args 和 weight hash 不同，但关键指标完全一致；multi-seed invalid，需重跑 seed=2 |
@@ -78,8 +78,7 @@
 - 暂停 E13_4b / E13_4c 后续扩展：scale+center 组合未超过 E13_3b，且误报明显升高。
 - 暂停 hard negative 3x / 5x：S6 只允许 background_far 1.5x / 2x。
 - 继续暂停 E15 强模型对照和 E21 test set。
-- 暂停 E26_2b：必须等 E26_2a 有效训练和验证结果后再判断是否执行。
-- 暂停 E26_2a/E26_2b/E27_1_full/E27_2/E27_3/E28_1/E28_2/E9_1/E16/E19：第一批 E25_0、E25_1_full、E26_1_full 完成并复核前不进入第二批。
+- 暂停 E27_2/E27_3/E28_1/E28_2/E9_1/E16/E19：第一批 E25_0、E25_1_full、E26_1_full 完成并复核前不进入第二批。
 
 ## 当前路线约束
 
@@ -89,7 +88,7 @@
 - 不继续 IR-only 960 + resampling。
 - 不启动 RT-DETR / YOLOv10 / YOLO11s 强模型对照。
 - 不运行 test set。
-- S6.5 当前优先完成 corrected multi-seed 重跑；旧 E18/E25_0 多 seed 结果不得用于结论。第二批继续训练中的 E26_2b 保留，不主动终止。
+- S6.5 当前优先完成 corrected multi-seed 重跑；旧 E18/E25_0 多 seed 结果不得用于结论。E26_2b 与 E27_1_full 已完成且不作为候选，不再视为继续训练中的任务。
 - S6.5 硬通过条件：AP_dark-small_object >= 0.098，AP_tiny_object / AP_low-contrast_object 不明显下降，FP/image < 1.469027，FPPI_dark < 2.536932，FPPI_low-contrast < E6。
 - E22_1 只生成 hard negative list，不直接训练。
 - E22_2a/E22_2b 只使用 background_far hard negative 轻量采样，不使用 class_confusion/all 3x/5x；训练源必须来自 train split，不允许直接用 val FP 泄漏到训练。
