@@ -138,11 +138,11 @@ def _taxonomy(fp_cls: int, pred_xyxy: tuple[float, float, float, float], gt: lis
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("--mode", default="taxonomy", choices=["taxonomy", "lists"], help="Run E22_0 taxonomy or E22_1 list export.")
-    parser.add_argument("--e20-dir", default="/mnt/disk2/lhr/VSD/results/val/e20_0_error_delta_analysis")
-    parser.add_argument("--taxonomy-csv", default="/mnt/disk2/lhr/VSD/results/val/e22_0_hard_negative_taxonomy/hard_negative_list.csv")
+    parser.add_argument("--e20-dir", default="/mnt/disk2/lhr/VSD/results/S5_diagnostic_optimization/e20_0_error_delta_analysis")
+    parser.add_argument("--taxonomy-csv", default="/mnt/disk2/lhr/VSD/results/S5_diagnostic_optimization/e22_0_hard_negative_taxonomy/hard_negative_list.csv")
     parser.add_argument("--data-rgb-ir", default="/mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/dronevehicle_resplit_rgb_ir.yaml")
     parser.add_argument("--split", default="val", choices=["train", "val"])
-    parser.add_argument("--out-dir", default="/mnt/disk2/lhr/VSD/results/val/e22_0_hard_negative_taxonomy")
+    parser.add_argument("--out-dir", default="/mnt/disk2/lhr/VSD/results/S5_diagnostic_optimization/e22_0_hard_negative_taxonomy")
     return parser.parse_args()
 
 
@@ -175,6 +175,7 @@ def _run_taxonomy(args: argparse.Namespace) -> Path:
         xyxy = (float(row["x1"]), float(row["y1"]), float(row["x2"]), float(row["y2"]))
         label, nearest_iou, nearest_cls = _taxonomy(fp_cls, xyxy, gt_cache[stem])
         new_row = dict(row)
+        new_row["split"] = str(args.split)
         new_row["taxonomy"] = label
         new_row["nearest_gt_iou"] = f"{nearest_iou:.6f}"
         new_row["nearest_gt_class_id"] = "" if nearest_cls is None else nearest_cls
@@ -243,6 +244,7 @@ def _list_row(row: dict[str, str]) -> dict[str, Any]:
         "nearest_gt_class": row.get("nearest_gt_class_id", ""),
         "iou_to_nearest_gt": row.get("nearest_gt_iou", ""),
         "error_type": row.get("taxonomy", ""),
+        "split": row.get("split", ""),
         **flags,
         "model": row.get("model", ""),
         "stem": row.get("stem", ""),
@@ -304,6 +306,7 @@ def _run_lists(args: argparse.Namespace) -> None:
         "nearest_gt_class",
         "iou_to_nearest_gt",
         "error_type",
+        "split",
         "is_dark",
         "is_small",
         "is_tiny",

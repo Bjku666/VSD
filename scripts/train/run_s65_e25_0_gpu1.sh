@@ -22,17 +22,17 @@ echo "[S6.5-A] config GPU=${GPU_DEVICE} train_batch=${TRAIN_BATCH} train_workers
 train_seed() {
   local seed="$1"
   local train_name="e25_0_e13_3b_seed${seed}"
-  local train_dir="$ROOT/results/val/${train_name}"
+  local train_dir="$ROOT/results/S6_5_reliability_calibration/${train_name}"
   local weights="$train_dir/weights/best.pt"
 
-  if [[ -f "$ROOT/results/val/${train_name}_val/required_metrics.json" \
-     && -f "$ROOT/results/val/${train_name}_object_level/required_metrics.json" \
-     && -d "$ROOT/results/val/${train_name}_predictions/labels" ]]; then
+  if [[ -f "$ROOT/results/S6_5_reliability_calibration/${train_name}_val/required_metrics.json" \
+     && -f "$ROOT/results/S6_5_reliability_calibration/${train_name}_object_level/required_metrics.json" \
+     && -d "$ROOT/results/S6_5_reliability_calibration/${train_name}_predictions/labels" ]]; then
     echo "[S6.5-A] E25_0 seed=${seed} complete outputs exist; skip train/val/object/export"
     return
   fi
 
-  if [[ "$TRAIN_RESUME" == "1" && -f "$train_dir/weights/last.pt" && ! -f "$ROOT/results/val/${train_name}_val/required_metrics.json" ]]; then
+  if [[ "$TRAIN_RESUME" == "1" && -f "$train_dir/weights/last.pt" && ! -f "$ROOT/results/S6_5_reliability_calibration/${train_name}_val/required_metrics.json" ]]; then
     echo "[S6.5-A] E25_0 seed=${seed} resume train from last.pt on GPU${GPU_DEVICE}"
     "$PY" scripts/e13_train_tiny_aware_loss.py \
       --mode rgb_ir \
@@ -48,14 +48,14 @@ train_seed() {
       --batch "$TRAIN_BATCH" \
       --workers "$TRAIN_WORKERS" \
       --device "$GPU_DEVICE" \
-      --project "$ROOT/results/val" \
+      --project "$ROOT/results/S6_5_reliability_calibration" \
       --name "$train_name" \
       --seed "$seed" \
       --close-mosaic 10 \
       --patience 100 \
       --resume \
       --exist-ok
-  elif [[ ! -f "$weights" || ! -f "$ROOT/results/val/${train_name}_val/required_metrics.json" ]]; then
+  elif [[ ! -f "$weights" || ! -f "$ROOT/results/S6_5_reliability_calibration/${train_name}_val/required_metrics.json" ]]; then
     echo "[S6.5-A] E25_0 seed=${seed} fresh train on GPU${GPU_DEVICE}"
     "$PY" scripts/e13_train_tiny_aware_loss.py \
       --mode rgb_ir \
@@ -65,13 +65,13 @@ train_seed() {
       --small-px 32.0 \
       --center-alpha 0.25 \
       --center-max 4.0 \
-      --model "$ROOT/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt" \
+      --model "$ROOT/results/S2_fusion_mainline/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt" \
       --epochs 100 \
       --imgsz 640 \
       --batch "$TRAIN_BATCH" \
       --workers "$TRAIN_WORKERS" \
       --device "$GPU_DEVICE" \
-      --project "$ROOT/results/val" \
+      --project "$ROOT/results/S6_5_reliability_calibration" \
       --name "$train_name" \
       --seed "$seed" \
       --close-mosaic 10 \
@@ -85,9 +85,9 @@ train_seed() {
     exit 1
   fi
 
-  local val_dir="$ROOT/results/val/${train_name}_val"
-  local obj_dir="$ROOT/results/val/${train_name}_object_level"
-  local pred_dir="$ROOT/results/val/${train_name}_predictions"
+  local val_dir="$ROOT/results/S6_5_reliability_calibration/${train_name}_val"
+  local obj_dir="$ROOT/results/S6_5_reliability_calibration/${train_name}_object_level"
+  local pred_dir="$ROOT/results/S6_5_reliability_calibration/${train_name}_predictions"
 
   if [[ ! -f "$val_dir/required_metrics.json" ]]; then
     echo "[S6.5-A] E25_0 seed=${seed} validation start"

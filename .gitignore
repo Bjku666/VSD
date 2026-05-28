@@ -18,11 +18,12 @@ __pycache__/
 venv/
 env/
 ENV/
+.conda/
 
 # Logs and runtime files
 *.log
 
-# Training / experiment artifacts
+# Data artifacts
 data/**/*
 !data/**/
 !data/**/.gitkeep
@@ -31,6 +32,7 @@ prepared/**/*
 !prepared/**/
 !prepared/**/.gitkeep
 
+# Legacy/non-stage runtime roots
 experiments/**/*
 !experiments/**/
 !experiments/**/.gitkeep
@@ -39,23 +41,18 @@ logs/**/*
 !logs/**/
 !logs/**/.gitkeep
 
-results/test/**/*
-!results/test/**/
-!results/test/**/.gitkeep
-
-results/val/**/*
-!results/val/**/
-!results/val/**/.gitkeep
-
 runs/**/*
 !runs/**/
 !runs/**/.gitkeep
 
-# Keep documentation in results
-!results/README.md
-!results/val/
-!results/val/dark_small_experiment_leaderboard.csv
-!results/val/dark_small_experiment_leaderboard.md
+# Results / experiment artifacts
+results/**/*
+!results/
+!results/.gitkeep
+
+# Keep only the cross-stage leaderboard in results.
+!results/dark_small_experiment_leaderboard.csv
+!results/dark_small_experiment_leaderboard.md
 
 # Weights / checkpoints
 *.pt
@@ -73,6 +70,3 @@ weights/**/*
 *.tmp
 *.temp
 *.bak
-
-# Keep placeholder files that preserve directory structure
-!**/perface.md

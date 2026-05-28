@@ -59,6 +59,55 @@ def _load_class_confusion_map(path: str | None) -> dict[str, set[int]]:
     return mapping
 
 
+def validate_class_confusion_source(path: str | None) -> dict[str, Any]:
+    """Require class-confusion training sources to prove train-only provenance."""
+    if not path:
+        raise ValueError("class-confusion training requires --class-confusion-map")
+    source = Path(path)
+    if not source.exists():
+        raise FileNotFoundError(f"class-confusion map not found: {source}")
+    if source.suffix.lower() == ".json":
+        raw = json.loads(source.read_text(encoding="utf-8"))
+        source_split = str(raw.get("source_split", "")).strip() if isinstance(raw, dict) else ""
+        train_only = bool(raw.get("train_only", False)) if isinstance(raw, dict) else False
+        if source_split != "train" or not train_only:
+            raise ValueError(
+                "blocked_class_confusion_source_split: JSON source must declare "
+                "source_split='train' and train_only=true"
+            )
+        return {"path": str(source), "source_split": source_split, "rows_checked": 0}
+
+    bad_rows: list[tuple[int, str]] = []
+    checked = 0
+    with source.open("r", encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f)
+        fields = set(reader.fieldnames or [])
+        if "split" not in fields:
+            raise ValueError(
+                f"blocked_class_confusion_source_split: missing non-empty split column in {source}"
+            )
+        for line_no, row in enumerate(reader, start=2):
+            if row.get("taxonomy") != "class_confusion":
+                continue
+            if row.get("model") and row.get("model") != "E6":
+                continue
+            checked += 1
+            split = str(row.get("split", "")).strip()
+            if split != "train":
+                bad_rows.append((line_no, split))
+                if len(bad_rows) >= 5:
+                    break
+    if checked == 0:
+        raise ValueError(f"blocked_class_confusion_source_split: no class_confusion rows found in {source}")
+    if bad_rows:
+        sample = ", ".join(f"line {line_no}: split={split!r}" for line_no, split in bad_rows)
+        raise ValueError(
+            "blocked_class_confusion_source_split: all class_confusion rows must have "
+            f"non-empty split='train'; checked={checked}; sample={sample}"
+        )
+    return {"path": str(source), "source_split": "train", "rows_checked": checked}
+
+
 class ScaleAwareBboxLoss(nn.Module):
     """Bbox loss with capped extra weight for small assigned targets."""
 

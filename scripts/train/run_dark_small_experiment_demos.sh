@@ -23,20 +23,20 @@ BATCH_SINGLE="${BATCH_SINGLE:-32}"
 BATCH_FUSION="${BATCH_FUSION:-32}"
 BATCH_LATE="${BATCH_LATE:-16}"
 WORKERS="${WORKERS:-32}"
-LOG_DIR="${ROOT}/results/val/logs"
-WORK_DIR="${WORK_DIR:-${ROOT}/results/val/work}"
+LOG_DIR="${ROOT}/results/S6_5_reliability_calibration/logs"
+WORK_DIR="${WORK_DIR:-${ROOT}/results/S6_5_reliability_calibration/work}"
 MODEL_N="${MODEL_N:-${ROOT}/weights/pretrained/yolo11n.pt}"
 MODEL_S="${MODEL_S:-${ROOT}/weights/pretrained/yolo11s.pt}"
 RGB_DATA="${ROOT}/configs/dronevehicle_resplit/dronevehicle_resplit_rgb.yaml"
 IR_DATA="${ROOT}/configs/dronevehicle_resplit/dronevehicle_resplit_ir.yaml"
 RGB_IR_DATA="${ROOT}/configs/dronevehicle_resplit/dronevehicle_resplit_rgb_ir.yaml"
-E1_W="${ROOT}/results/val/e1_yolo11n_rgb_only_640_ddp/weights/best.pt"
-E2_W="${ROOT}/results/val/e2_yolo11n_ir_only_640_ddp/weights/best.pt"
-E5_W="${ROOT}/results/val/yolo11n_e5_rgb_ir_640_ddp/weights/best.pt"
-E6_W="${ROOT}/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt"
-E10_W="${ROOT}/results/val/e10_2_e6_768/weights/best.pt"
-E13_3B_LIGHT_W="${ROOT}/results/val/e13_3b_light_target_center_loss/weights/best.pt"
-E14_3_W="${ROOT}/results/val/e14_3_e13_3b_light_cebs_a005/weights/best.pt"
+E1_W="${ROOT}/results/S1_baselines/e1_yolo11n_rgb_only_640_ddp/weights/best.pt"
+E2_W="${ROOT}/results/S1_baselines/e2_yolo11n_ir_only_640_ddp/weights/best.pt"
+E5_W="${ROOT}/results/S2_fusion_mainline/yolo11n_e5_rgb_ir_640_ddp/weights/best.pt"
+E6_W="${ROOT}/results/S2_fusion_mainline/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt"
+E10_W="${ROOT}/results/S3_resolution_sampling/e10_2_e6_768/weights/best.pt"
+E13_3B_LIGHT_W="${ROOT}/results/S6_object_background_suppression/e13_3b_light_target_center_loss/weights/best.pt"
+E14_3_W="${ROOT}/results/S6_object_background_suppression/e14_3_e13_3b_light_cebs_a005/weights/best.pt"
 FINAL_W="${FINAL_W:-${E10_W}}"
 BATCH_OBJECT="${BATCH_OBJECT:-16}"
 WORKERS_OBJECT="${WORKERS_OBJECT:-8}"
@@ -158,13 +158,26 @@ s6_current() {
   done
 }
 
+stage_tag_for_id() {
+  case "$1" in
+    E0_*) echo "S0" ;;
+    E1|E2|E3|E4) echo "S1" ;;
+    E5|E6) echo "S2" ;;
+    E7_*|E8_*|E9_*|E10_*) echo "S3" ;;
+    E11_*|E12_*|E13_1|E13_2|E13_3|E13_4|E13_5|E13_6) echo "S4" ;;
+    E15_*|E16_*|E17_*|E18|E19|E20|E21) echo "S5" ;;
+    E13_3b_light|E14_*|E18_check|E22_*|E23|E23_*|E24_*) echo "S6" ;;
+    *) echo "S?" ;;
+  esac
+}
+
 # E0 protocol and dataset audit ------------------------------------------------
 e0_1() { echo "# E0_1: RGB/IR pair audit"; run_or_print "${PY}" "${ROOT}/scripts/dataset_resplit_dronevehicle.py" --root "${ROOT}" --audit-pairs; }
 e0_2() { echo "# E0_2: official split leakage check"; run_or_print "${PY}" "${ROOT}/scripts/dataset_resplit_dronevehicle.py" --root "${ROOT}" --check-leakage; }
 e0_3() { echo "# E0_3: confirm dark/small/dark-small subsets"; run_or_print "${PY}" "${ROOT}/scripts/dataset_resplit_dronevehicle.py" --root "${ROOT}" --build-subsets dark small dark-small; }
 e0_4() { echo "# E0_4: build low-contrast subset from train thresholds"; run_or_print "${PY}" "${ROOT}/scripts/dataset_resplit_dronevehicle.py" --root "${ROOT}" --build-subsets low-contrast; }
 e0_5() { echo "# E0_5: build tiny/small/medium/large size buckets"; run_or_print "${PY}" "${ROOT}/scripts/dataset_resplit_dronevehicle.py" --root "${ROOT}" --build-size-buckets tiny small medium large; }
-e0_6() { echo "# E0_6: aggregate unified metric protocol artifacts"; run_or_print "${PY}" "${ROOT}/scripts/dark_small_experiment_runner.py" aggregate --out-dir "${ROOT}/results/val"; }
+e0_6() { echo "# E0_6: aggregate unified metric protocol artifacts"; run_or_print "${PY}" "${ROOT}/scripts/dark_small_experiment_runner.py" aggregate --out-dir "${ROOT}/results"; }
 e0_7() { echo "# E0_7: object-level evaluator smoke demo"; planned_only E0_7 "object-level evaluator is covered by E5/E6 val scripts; standalone CLI can be added later" "${PY}" "${ROOT}/scripts/e23_object_level_subset_eval.py" --model "${E6_W}" --subsets dark-small tiny low-contrast --dry-run; }
 
 # E1-E6 baselines --------------------------------------------------------------
@@ -181,7 +194,7 @@ e7_2() { runner_exp E7_2; }
 e7_3() { runner_exp E7_3; }
 e7_4() { runner_exp E7_4; }
 e7_5() { runner_exp E7_5; }
-e7_6() { echo "# E7_6: skipped duplicate of E4 equal-weight WBF"; run_or_print "${PY}" "${RUNNER}" aggregate --out-dir "${ROOT}/results/val"; }
+e7_6() { echo "# E7_6: skipped duplicate of E4 equal-weight WBF"; run_or_print "${PY}" "${RUNNER}" aggregate --out-dir "${ROOT}/results"; }
 e8_1() { runner_exp E8_1; }
 e8_2() { runner_exp E8_2; }
 e8_3() { echo "# E8_3: paused by current route; demo retained"; runner_exp E8_3; }
@@ -210,8 +223,8 @@ e13_3b_light() {
   runner_exp E13_3b_light
   object_eval_e13_after E13_3b_light \
     "${E13_3B_LIGHT_W}" \
-    "${ROOT}/results/val/e13_3b_light_target_center_loss_val/required_metrics.json" \
-    "${ROOT}/results/val/e23_e13_3b_light_object_level" \
+    "${ROOT}/results/S6_object_background_suppression/e13_3b_light_target_center_loss_val/required_metrics.json" \
+    "${ROOT}/results/S6_object_background_suppression/e23_e13_3b_light_object_level" \
     "${DEVICE_SINGLE}"
 }
 e13_4() { planned_only E13_4 "dark-small sample weighting" "${PY}" "${ROOT}/scripts/e13_train_tiny_aware_loss.py" --loss dark-small-weight --model "${E6_W}" --name e13_4_darksmall_weight --dry-run; }
@@ -221,18 +234,18 @@ e14_1() {
   echo "# E14_1: E6 + CEBS alpha=0.05, S6 reviewed"
   runner_exp E14_1
   object_eval_e14_after E14_1 \
-    "${ROOT}/results/val/e14_1_e6_cebs_a005/weights/best.pt" \
-    "${ROOT}/results/val/e14_1_e6_cebs_a005_val/required_metrics.json" \
-    "${ROOT}/results/val/e23_e14_1_cebs_a005_object_level" \
+    "${ROOT}/results/S6_object_background_suppression/e14_1_e6_cebs_a005/weights/best.pt" \
+    "${ROOT}/results/S6_object_background_suppression/e14_1_e6_cebs_a005_val/required_metrics.json" \
+    "${ROOT}/results/S6_object_background_suppression/e23_e14_1_cebs_a005_object_level" \
     "${DEVICE_SINGLE}" 0.05
 }
 e14_2() {
   echo "# E14_2: E6 + CEBS alpha=0.10, S6 reviewed"
   runner_exp E14_2
   object_eval_e14_after E14_2 \
-    "${ROOT}/results/val/e14_2_e6_cebs_a010/weights/best.pt" \
-    "${ROOT}/results/val/e14_2_e6_cebs_a010_val/required_metrics.json" \
-    "${ROOT}/results/val/e23_e14_2_cebs_a010_object_level" \
+    "${ROOT}/results/S6_object_background_suppression/e14_2_e6_cebs_a010/weights/best.pt" \
+    "${ROOT}/results/S6_object_background_suppression/e14_2_e6_cebs_a010_val/required_metrics.json" \
+    "${ROOT}/results/S6_object_background_suppression/e23_e14_2_cebs_a010_object_level" \
     "${DEVICE_SINGLE}" 0.10
 }
 e14_3() {
@@ -240,59 +253,59 @@ e14_3() {
   runner_exp E14_3
   object_eval_e14_after E14_3 \
     "${E14_3_W}" \
-    "${ROOT}/results/val/e14_3_e13_3b_light_cebs_a005_val/required_metrics.json" \
-    "${ROOT}/results/val/e23_e14_3_e13_3b_light_cebs_a005_object_level" \
+    "${ROOT}/results/S6_object_background_suppression/e14_3_e13_3b_light_cebs_a005_val/required_metrics.json" \
+    "${ROOT}/results/S6_object_background_suppression/e23_e14_3_e13_3b_light_cebs_a005_object_level" \
     "${DEVICE_SINGLE}" 0.05
 }
 e14_4() { planned_only E14_4 "skipped_not_justified: E14_3 and HN 1.5x/2x did not meet image/object candidate criteria" "${PY}" "${RUNNER}" run E14_4 --dry-run --work-dir "${WORK_DIR}"; }
-e15_1() { planned_only E15_1 "YOLOv10n strong model comparison" "${YOLO}" detect train model=yolov10n.pt data="${RGB_IR_DATA}" imgsz=640 epochs=100 batch="${BATCH_SINGLE}" workers="${WORKERS}" device="${DEVICE}" project="${ROOT}/results/val" name=e15_1_yolov10n; }
-e15_2() { planned_only E15_2 "RT-DETR-R18 comparison" "${YOLO}" detect train model=rtdetr-r18.pt data="${RGB_IR_DATA}" imgsz=640 epochs=100 batch=16 workers="${WORKERS}" device="${DEVICE}" project="${ROOT}/results/val" name=e15_2_rtdetr_r18; }
+e15_1() { planned_only E15_1 "YOLOv10n strong model comparison" "${YOLO}" detect train model=yolov10n.pt data="${RGB_IR_DATA}" imgsz=640 epochs=100 batch="${BATCH_SINGLE}" workers="${WORKERS}" device="${DEVICE}" project="${ROOT}/results" name=e15_1_yolov10n; }
+e15_2() { planned_only E15_2 "RT-DETR-R18 comparison" "${YOLO}" detect train model=rtdetr-r18.pt data="${RGB_IR_DATA}" imgsz=640 epochs=100 batch=16 workers="${WORKERS}" device="${DEVICE}" project="${ROOT}/results" name=e15_2_rtdetr_r18; }
 e15_3() { planned_only E15_3 "YOLO11s modality/model-capacity comparison" "${PY}" "${ROOT}/scripts/e15_train_yolo11s_comparison.py" --modes rgb ir fusion --model "${MODEL_S}" --device "${DEVICE}" --dry-run; }
 e15_4() { planned_only E15_4 "final method vs strong models" "${PY}" "${ROOT}/scripts/e15_compare_final_models.py" --final "${FINAL_W}" --baselines e15_1 e15_2 e15_3 --dry-run; }
 e16_1() { planned_only E16_1 "normal registration robustness baseline" "${PY}" "${ROOT}/scripts/e16_eval_registration_shift.py" --shift 0 --model "${FINAL_W}" --dry-run; }
 e16_2() { planned_only E16_2 "IR random shift +/-2 px" "${PY}" "${ROOT}/scripts/e16_eval_registration_shift.py" --shift 2 --model "${FINAL_W}" --dry-run; }
 e16_3() { planned_only E16_3 "IR random shift +/-4 px" "${PY}" "${ROOT}/scripts/e16_eval_registration_shift.py" --shift 4 --model "${FINAL_W}" --dry-run; }
 e16_4() { planned_only E16_4 "IR random shift +/-8 px" "${PY}" "${ROOT}/scripts/e16_eval_registration_shift.py" --shift 8 --model "${FINAL_W}" --dry-run; }
-e16_5() { planned_only E16_5 "gated fusion under registration shift" "${PY}" "${ROOT}/scripts/e16_eval_registration_shift.py" --shift 4 --model "${ROOT}/results/val/e12_best/weights/best.pt" --gated --dry-run; }
+e16_5() { planned_only E16_5 "gated fusion under registration shift" "${PY}" "${ROOT}/scripts/e16_eval_registration_shift.py" --shift 4 --model "${ROOT}/results/S4_head_gate_loss/e12_best/weights/best.pt" --gated --dry-run; }
 e17_1() { e0_4; }
-e17_2() { planned_only E17_2 "low-contrast evaluation across selected models" "${PY}" "${ROOT}/scripts/e17_eval_low_contrast_models.py" --models E2="${E2_W}" E4="${ROOT}/results/val/e4_late_fusion_wbf_val" E10="${E10_W}" FINAL="${FINAL_W}" --dry-run; }
-e17_3() { planned_only E17_3 "report low-contrast AP/Recall/FPPI" "${PY}" "${ROOT}/scripts/e17_report_low_contrast.py" --results-val "${ROOT}/results/val" --dry-run; }
-e18_check() { echo "# E18_check: E13_3b seed independence audit"; run_logged E18_check "${PY}" "${ROOT}/scripts/e18_run_multiseed.py" --out-dir "${ROOT}/results/val/e18_check_e13_3b_seed_integrity"; }
+e17_2() { planned_only E17_2 "low-contrast evaluation across selected models" "${PY}" "${ROOT}/scripts/e17_eval_low_contrast_models.py" --models E2="${E2_W}" E4="${ROOT}/results/S1_baselines/e4_late_fusion_wbf_val" E10="${E10_W}" FINAL="${FINAL_W}" --dry-run; }
+e17_3() { planned_only E17_3 "report low-contrast AP/Recall/FPPI" "${PY}" "${ROOT}/scripts/e17_report_low_contrast.py" --results-val "${ROOT}/results" --dry-run; }
+e18_check() { echo "# E18_check: E13_3b seed independence audit"; run_logged E18_check "${PY}" "${ROOT}/scripts/e18_run_multiseed.py" --out-dir "${ROOT}/results/S6_object_background_suppression/e18_check_e13_3b_seed_integrity"; }
 e18() { planned_only E18 "full multi-seed stability wrapper; not part of S6 current executable set" "${PY}" "${ROOT}/scripts/e18_run_multiseed.py" --dry-run; }
 e19() { planned_only E19 "efficiency/deployment metrics" "${PY}" "${ROOT}/scripts/e19_measure_efficiency.py" --models E2="${E2_W}" E6="${E6_W}" E10="${E10_W}" FINAL="${FINAL_W}" --dry-run; }
-e20() { planned_only E20 "per-class/tiny/failure-case analysis" "${PY}" "${ROOT}/scripts/e20_failure_case_analysis.py" --model "${FINAL_W}" --out-dir "${ROOT}/results/val/e20_failure_analysis" --dry-run; }
+e20() { planned_only E20 "per-class/tiny/failure-case analysis" "${PY}" "${ROOT}/scripts/e20_failure_case_analysis.py" --model "${FINAL_W}" --out-dir "${ROOT}/results/S5_diagnostic_optimization/e20_failure_analysis" --dry-run; }
 e21() { planned_only E21 "locked test-set final evaluation; do not run during tuning" "${PY}" "${ROOT}/scripts/e21_locked_test_eval.py" --protocol DroneVehicle-DarkSmall-v1 --models E2 E4 E10 FINAL --dry-run; }
-e22_1() { echo "# E22_1: train-split hard negative list export; background_far only is train-allowed"; run_logged E22_1 "${PY}" "${ROOT}/scripts/e22_hard_negative_mining.py" --mode lists --taxonomy-csv "${ROOT}/results/val/e22_0_train_hard_negative_taxonomy/hard_negative_list.csv" --split train --out-dir "${ROOT}/results/val/e22_1_train_hard_negative_lists"; }
+e22_1() { echo "# E22_1: train-split hard negative list export; background_far only is train-allowed"; run_logged E22_1 "${PY}" "${ROOT}/scripts/e22_hard_negative_mining.py" --mode lists --taxonomy-csv "${ROOT}/results/S5_diagnostic_optimization/e22_0_train_hard_negative_taxonomy/hard_negative_list.csv" --split train --out-dir "${ROOT}/results/S6_object_background_suppression/e22_1_train_hard_negative_lists"; }
 e22_2a() {
   echo "# E22_2a: E6 + train background_far HN 1.5x, S6 reviewed"
   runner_exp E22_2a
   object_eval_e6_after E22_2a \
-    "${ROOT}/results/val/e22_2a_e6_background_far_hn15_gpu0_b48/weights/best.pt" \
-    "${ROOT}/results/val/e22_2a_e6_background_far_hn15_val/required_metrics.json" \
-    "${ROOT}/results/val/e23_e22_2a_hn15_object_level" \
+    "${ROOT}/results/S6_object_background_suppression/e22_2a_e6_background_far_hn15_gpu0_b48/weights/best.pt" \
+    "${ROOT}/results/S6_object_background_suppression/e22_2a_e6_background_far_hn15_val/required_metrics.json" \
+    "${ROOT}/results/S6_object_background_suppression/e23_e22_2a_hn15_object_level" \
     "${DEVICE_SINGLE}" 48
 }
 e22_2b() {
   echo "# E22_2b: E6 + train background_far HN 2x, S6 reviewed"
   runner_exp E22_2b
   object_eval_e6_after E22_2b \
-    "${ROOT}/results/val/e22_2b_e6_background_far_hn2/weights/best.pt" \
-    "${ROOT}/results/val/e22_2b_e6_background_far_hn2_val/required_metrics.json" \
-    "${ROOT}/results/val/e23_e22_2b_hn2_object_level" \
+    "${ROOT}/results/S6_object_background_suppression/e22_2b_e6_background_far_hn2/weights/best.pt" \
+    "${ROOT}/results/S6_object_background_suppression/e22_2b_e6_background_far_hn2_val/required_metrics.json" \
+    "${ROOT}/results/S6_object_background_suppression/e23_e22_2b_hn2_object_level" \
     "${DEVICE_SINGLE}" 48
 }
 e22_2() { planned_only E22_2 "legacy alias; S6 uses exact E22_2a/E22_2b entries only" "${PY}" "${RUNNER}" list E22_2a E22_2b; }
 e22_3() { planned_only E22_3 "not allowed in S6: no hard-negative 3x/5x/all-HN expansion" "${PY}" "${RUNNER}" list E22_2a E22_2b; }
 e22_4() { planned_only E22_4 "not allowed in S6: no hard-negative 3x/5x/all-HN expansion" "${PY}" "${RUNNER}" list E22_2a E22_2b; }
 e22_5() { planned_only E22_5 "not allowed in S6: no CEBS + HN combo after E14_3/E22_2a/E22_2b review" "${PY}" "${RUNNER}" list E14_3 E22_2a E22_2b; }
-e23() { echo "# E23: E6 object-level evaluator"; run_logged E23 "${PY}" "${ROOT}/scripts/e23_object_level_subset_eval.py" --weights "${E6_W}" --validator e6 --mode rgb_ir --split val --image-metrics "${ROOT}/results/val/e6_feature_fusion_multiscale_val/required_metrics.json" --imgsz 640 --batch "${BATCH_OBJECT}" --workers "${WORKERS_OBJECT}" --device "${DEVICE_SINGLE}" --out-dir "${ROOT}/results/val/e23_object_level_evaluator"; }
-e23_1() { echo "# E23_1: object-level subset build smoke"; run_or_print "${PY}" "${ROOT}/scripts/e23_object_level_subset_eval.py" --weights "${E6_W}" --validator e6 --mode rgb_ir --split val --imgsz 640 --batch "${BATCH_OBJECT}" --workers "${WORKERS_OBJECT}" --device "${DEVICE_SINGLE}" --out-dir "${ROOT}/results/val/e23_object_level_evaluator_smoke" --build-only; }
+e23() { echo "# E23: E6 object-level evaluator"; run_logged E23 "${PY}" "${ROOT}/scripts/e23_object_level_subset_eval.py" --weights "${E6_W}" --validator e6 --mode rgb_ir --split val --image-metrics "${ROOT}/results/S2_fusion_mainline/e6_feature_fusion_multiscale_val/required_metrics.json" --imgsz 640 --batch "${BATCH_OBJECT}" --workers "${WORKERS_OBJECT}" --device "${DEVICE_SINGLE}" --out-dir "${ROOT}/results/S6_object_background_suppression/e23_object_level_evaluator"; }
+e23_1() { echo "# E23_1: object-level subset build smoke"; run_or_print "${PY}" "${ROOT}/scripts/e23_object_level_subset_eval.py" --weights "${E6_W}" --validator e6 --mode rgb_ir --split val --imgsz 640 --batch "${BATCH_OBJECT}" --workers "${WORKERS_OBJECT}" --device "${DEVICE_SINGLE}" --out-dir "${ROOT}/results/S6_object_background_suppression/e23_object_level_evaluator_smoke" --build-only; }
 e23_2() { e23; }
-e23_3() { echo "# E23_3: compare image-level and object-level metrics"; run_or_print "${PY}" "${ROOT}/scripts/e23_compare_metric_scopes.py" --results-val "${ROOT}/results/val" --out-dir "${ROOT}/results/val/e23_metric_scope_comparison"; }
+e23_3() { echo "# E23_3: compare image-level and object-level metrics"; run_or_print "${PY}" "${ROOT}/scripts/e23_compare_metric_scopes.py" --results-val "${ROOT}/results" --out-dir "${ROOT}/results/S6_object_background_suppression/e23_metric_scope_comparison"; }
 e24_0() { planned_only E24_0 "blocked_no_valid_candidate: no image/object-valid candidate to freeze; E24 CLI is still a demo placeholder" "${PY}" "${ROOT}/scripts/e24_freeze_repro_config.py" --step freeze-configs --out-dir "${ROOT}/configs/frozen" --dry-run; }
 e24_1() { planned_only E24_1 "freeze final configs" "${PY}" "${ROOT}/scripts/e24_freeze_repro_config.py" --step freeze-configs --out-dir "${ROOT}/configs/frozen" --dry-run; }
-e24_2() { planned_only E24_2 "audit config paths, commit, seed, weights, results" "${PY}" "${ROOT}/scripts/e24_freeze_repro_config.py" --step audit --results-val "${ROOT}/results/val" --dry-run; }
-e24_3() { planned_only E24_3 "verify leaderboard vs result dirs" "${PY}" "${ROOT}/scripts/e24_freeze_repro_config.py" --step verify-leaderboard --leaderboard "${ROOT}/results/val/dark_small_experiment_leaderboard.csv" --dry-run; }
+e24_2() { planned_only E24_2 "audit config paths, commit, seed, weights, results" "${PY}" "${ROOT}/scripts/e24_freeze_repro_config.py" --step audit --results-val "${ROOT}/results" --dry-run; }
+e24_3() { planned_only E24_3 "verify leaderboard vs result dirs" "${PY}" "${ROOT}/scripts/e24_freeze_repro_config.py" --step verify-leaderboard --leaderboard "${ROOT}/results/dark_small_experiment_leaderboard.csv" --dry-run; }
 
 list_ids() {
   cat <<'EOF'
@@ -323,12 +336,22 @@ Usage: scripts/train/run_dark_small_experiment_demos.sh {list|all|EXPERIMENT_ID.
 Default: dry-run. Set RUN_MODE=run for implemented experiments.
 Current route: do not run E21/test-set or strong-model E15 during tuning.
 Use S6 to print the current-stage demo sequence.
+Each experiment header prints its current stage tag as "Sx / Ex".
 EOF
 }
 
 run_id() {
+  local display_id lookup_id stage_tag
+  display_id="${1//-/_}"
+  display_id="${display_id/#e/E}"
+  display_id="${display_id/#s/S}"
+  lookup_id="$(echo "${display_id}" | tr '[:lower:]' '[:upper:]')"
+  stage_tag="$(stage_tag_for_id "${lookup_id}")"
   local id_lc
   id_lc="$(echo "$1" | tr '[:upper:]-' '[:lower:]_')"
+  if [[ "${id_lc}" != "s6" ]]; then
+    echo "# ${stage_tag} / ${display_id}"
+  fi
   case "${id_lc}" in
     e0_1) e0_1 ;; e0_2) e0_2 ;; e0_3) e0_3 ;; e0_4) e0_4 ;; e0_5) e0_5 ;; e0_6) e0_6 ;; e0_7) e0_7 ;;
     e1) e1 ;; e2) e2 ;; e3) e3 ;; e4) e4 ;; e5) e5 ;; e6) e6 ;;

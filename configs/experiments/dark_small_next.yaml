@@ -726,9 +726,10 @@ experiments:
   stage: S6.5
   kind: planned
   title: E13_3b multi-seed valid rerun
-  result_dir: /mnt/disk2/lhr/VSD/results/val/seedfix_e25_0_e13_3b_seed{42,43,44}_seedfix_b48_20260527
-  status: rerun_seedfix_gpu0_b48
-  note: Old E25_0 seed42/43/44 output/logs were deleted after seed_pipeline_failed audit. Corrected batch48 GPU0 rerun is active under seedfix_* directories.
+  result_dir: /mnt/disk2/lhr/VSD/results/S6_5_reliability_calibration/seedfix_e25_0_e13_3b_corrected_aggregate
+  metrics: /mnt/disk2/lhr/VSD/results/S6_5_reliability_calibration/seedfix_e25_0_e13_3b_corrected_aggregate/required_metrics.json
+  status: done_not_candidate
+  note: Corrected seedfix 2026-05-27 aggregate over seeds 42/43/44. Old E25_0 seed42/43/44 output/logs were deleted after seed_pipeline_failed audit and must not be used for mean/std, candidate judgment or paper conclusions.
 - id: E25_1
   stage: S6.5
   kind: planned
@@ -743,7 +744,8 @@ experiments:
   title: E6 full re-inference calibration / threshold / NMS sweep
   model: /mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt
   result_dir: /mnt/disk2/lhr/VSD/results/val/e25_1_full_e6_calibration_sweep
-  status: pending_full_reinference
+  metrics: /mnt/disk2/lhr/VSD/results/S6_5_reliability_calibration/e25_1_full_e6_calibration_sweep/required_metrics.json
+  status: done_not_candidate
   conf_grid: [0.15, 0.20, 0.25, 0.30, 0.35, 0.40]
   nms_iou_grid: [0.45, 0.50, 0.55, 0.60, 0.65, 0.70]
   threshold_modes: [global, class_wise, size_wise, illumination_wise]
@@ -752,7 +754,7 @@ experiments:
   - pareto_ap_obj_vs_fppi_dark.png
   - best_operating_points.json
   - classwise_thresholds.json
-  note: First-batch S6.5 task. Must re-run E6 inference rather than use cached predictions, and must report both image-level and object-level metrics. Passing candidate gate requires AP_dark-small_object >= 0.098, FP/image < E6, FPPI_dark < E6 and FPPI_low-contrast < E6.
+  note: Full re-inference completed. FP/image and FPPI improve, but post-threshold object-level AP_dark-small/tiny/low-contrast drop below E6, so this is not a candidate.
 - id: E26_1
   stage: S6.5
   kind: planned
@@ -766,7 +768,8 @@ experiments:
   kind: planned
   title: class-wise threshold full re-inference validation
   result_dir: /mnt/disk2/lhr/VSD/results/val/e26_1_full_classwise_threshold_calibration
-  status: pending_after_E25_1_full
+  metrics: /mnt/disk2/lhr/VSD/results/S6_5_reliability_calibration/e26_1_full_classwise_threshold_calibration/required_metrics.json
+  status: done_not_candidate
   source_operating_point: /mnt/disk2/lhr/VSD/results/val/e26_1_classwise_threshold_calibration/classwise_thresholds.json
   default_thresholds:
     car: 0.40
@@ -777,8 +780,8 @@ experiments:
   acceptance:
     max_fp_per_image: 1.20
     max_fppi_dark: 1.90
-    min_ap_dark_small_object: 0.098
-  note: First-batch S6.5 task. Validate the cached class-wise threshold signal on full re-inference outputs before any second-batch training.
+    min_ap_dark_small_object: 0.100028
+  note: Full re-inference completed. FP/image and FPPI improve, but post-threshold object-level AP_dark-small/tiny/low-contrast drop below E6, so this is not a candidate.
 - id: E26_2a
   stage: S6.5
   kind: e13
@@ -796,9 +799,10 @@ experiments:
   project: /mnt/disk2/lhr/VSD/results/val
   name: e26_2a_class_confusion_cls125
   result_dir: /mnt/disk2/lhr/VSD/results/val/e26_2a_class_confusion_cls125_val
-  metrics: /mnt/disk2/lhr/VSD/results/val/e26_2a_class_confusion_cls125_val/required_metrics.json
-  status: paused_second_batch
-  note: Second-batch candidate. Classification BCE only; bbox/DFL/assignment unchanged. Class-confusion source is train split E6 taxonomy only; class_confusion is not treated as background. Do not rerun until E25_0, E25_1_full and E26_1_full have been reviewed.
+  metrics: /mnt/disk2/lhr/VSD/results/S6_5_reliability_calibration/e26_2a_class_confusion_cls125_val/required_metrics.json
+  object_metrics: /mnt/disk2/lhr/VSD/results/S6_5_reliability_calibration/e26_2a_class_confusion_cls125_object_level/required_metrics.json
+  status: failed_train_split_source_unverified
+  note: Failed audit sample only. Source CSV has blank split for class_confusion rows and failed train-only source verification; training/validation/object-level/export artifacts must not be used for valid comparison or candidate conclusions.
 - id: E26_2b
   stage: S6.5
   kind: e13
@@ -816,9 +820,10 @@ experiments:
   project: /mnt/disk2/lhr/VSD/results/val
   name: e26_2b_class_confusion_cls150
   result_dir: /mnt/disk2/lhr/VSD/results/val/e26_2b_class_confusion_cls150_val
-  metrics: /mnt/disk2/lhr/VSD/results/val/e26_2b_class_confusion_cls150_val/required_metrics.json
-  status: paused_after_E26_2a
-  note: Run only if E26_2a does not reduce object-level dark-small AP materially. Classification BCE only; bbox/DFL/assignment unchanged.
+  metrics: /mnt/disk2/lhr/VSD/results/S6_5_reliability_calibration/e26_2b_class_confusion_cls150_val/required_metrics.json
+  object_metrics: /mnt/disk2/lhr/VSD/results/S6_5_reliability_calibration/e26_2b_class_confusion_cls150_object_level/required_metrics.json
+  status: failed_train_split_source_unverified
+  note: Failed audit sample only. Source CSV has blank split for class_confusion rows and failed train-only source verification; training/validation/object-level/export artifacts must not be used for valid comparison or candidate conclusions.
 - id: E27_1
   stage: S6.5
   kind: planned
@@ -832,7 +837,8 @@ experiments:
   kind: planned
   title: metadata verifier full re-inference validation
   result_dir: /mnt/disk2/lhr/VSD/results/val/e27_1_full_metadata_verifier
-  status: paused_second_batch
+  metrics: /mnt/disk2/lhr/VSD/results/S6_5_reliability_calibration/e27_1_full_metadata_verifier/required_metrics.json
+  status: done_not_candidate
   proposal_generator: E6
   feature_set:
   - bbox_area
@@ -850,4 +856,4 @@ experiments:
   - is_tiny
   negative_policy: background_far_only
   score: score_final = score_E6 * p_object
-  note: Second-batch candidate. Requires fresh E6 train/val predictions; cached E27_1 is only a preliminary signal. Class_confusion and localization_error must not be used as background negatives.
+  note: Full re-inference verifier completed. It lowers FP/FPPI but post-calibration object-level AP_dark-small/tiny/low-contrast drop below E6, so it is not a candidate; cached E27_1 remains preliminary only.

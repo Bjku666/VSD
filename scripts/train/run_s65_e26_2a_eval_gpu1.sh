@@ -17,10 +17,10 @@ EXPORT_WORKERS="${EXPORT_WORKERS:-8}"
 cd "$ROOT"
 
 NAME="e26_2a_class_confusion_cls125"
-WEIGHTS="$ROOT/results/val/${NAME}/weights/best.pt"
-VAL_DIR="$ROOT/results/val/${NAME}_val"
-OBJ_DIR="$ROOT/results/val/${NAME}_object_level"
-PRED_DIR="$ROOT/results/val/${NAME}_predictions"
+WEIGHTS="$ROOT/results/S6_5_reliability_calibration/${NAME}/weights/best.pt"
+VAL_DIR="$ROOT/results/S6_5_reliability_calibration/${NAME}_val"
+OBJ_DIR="$ROOT/results/S6_5_reliability_calibration/${NAME}_object_level"
+PRED_DIR="$ROOT/results/S6_5_reliability_calibration/${NAME}_predictions"
 
 if [[ ! -f "$WEIGHTS" ]]; then
   echo "[S6.5-B] missing E26_2a weights: $WEIGHTS" >&2

@@ -19,12 +19,12 @@ EXPORT_WORKERS="${EXPORT_WORKERS:-8}"
 cd "$ROOT"
 
 NAME="e26_2b_class_confusion_cls150"
-TRAIN_DIR="$ROOT/results/val/${NAME}"
+TRAIN_DIR="$ROOT/results/S6_5_reliability_calibration/${NAME}"
 WEIGHTS="$TRAIN_DIR/weights/best.pt"
-VAL_DIR="$ROOT/results/val/${NAME}_val"
-OBJ_DIR="$ROOT/results/val/${NAME}_object_level"
-PRED_DIR="$ROOT/results/val/${NAME}_predictions"
-CLASS_CONFUSION_MAP="$ROOT/results/val/e22_0_train_hard_negative_taxonomy/hard_negative_list.csv"
+VAL_DIR="$ROOT/results/S6_5_reliability_calibration/${NAME}_val"
+OBJ_DIR="$ROOT/results/S6_5_reliability_calibration/${NAME}_object_level"
+PRED_DIR="$ROOT/results/S6_5_reliability_calibration/${NAME}_predictions"
+CLASS_CONFUSION_MAP="$ROOT/results/S5_diagnostic_optimization/e22_0_train_hard_negative_taxonomy/hard_negative_list.csv"
 
 if [[ ! -f "$WEIGHTS" ]]; then
   echo "[S6.5-B] E26_2b train start"
@@ -33,13 +33,13 @@ if [[ ! -f "$WEIGHTS" ]]; then
     --loss class-confusion-cls \
     --class-confusion-map "$CLASS_CONFUSION_MAP" \
     --class-confusion-cls-gain 1.50 \
-    --model "$ROOT/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt" \
+    --model "$ROOT/results/S2_fusion_mainline/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt" \
     --epochs 100 \
     --imgsz 640 \
     --batch "$TRAIN_BATCH" \
     --workers "$TRAIN_WORKERS" \
     --device "$GPU_DEVICE" \
-    --project "$ROOT/results/val" \
+    --project "$ROOT/results/S6_5_reliability_calibration" \
     --name "$NAME" \
     --seed 0 \
     --close-mosaic 10 \

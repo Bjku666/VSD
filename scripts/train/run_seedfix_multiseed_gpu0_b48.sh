@@ -13,7 +13,7 @@ EVAL_BATCH="${EVAL_BATCH:-48}"
 EVAL_WORKERS="${EVAL_WORKERS:-8}"
 EPOCHS="${EPOCHS:-100}"
 TAG="${TAG:-seedfix_b48_20260527}"
-BASE_E6_WEIGHTS="${BASE_E6_WEIGHTS:-$ROOT/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt}"
+BASE_E6_WEIGHTS="${BASE_E6_WEIGHTS:-$ROOT/results/S2_fusion_mainline/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt}"
 
 cd "$ROOT"
 
@@ -40,10 +40,10 @@ export_eval() {
 
 seed_outputs_complete() {
   local name="$1"
-  [[ -f "$ROOT/results/val/${name}/weights/best.pt" ]] &&
-    [[ -f "$ROOT/results/val/${name}_val/required_metrics.json" ]] &&
-    [[ -f "$ROOT/results/val/${name}_object_level/required_metrics.json" ]] &&
-    [[ -d "$ROOT/results/val/${name}_predictions/labels" ]]
+  [[ -f "$ROOT/results/S6_5_reliability_calibration/${name}/weights/best.pt" ]] &&
+    [[ -f "$ROOT/results/S6_5_reliability_calibration/${name}_val/required_metrics.json" ]] &&
+    [[ -f "$ROOT/results/S6_5_reliability_calibration/${name}_object_level/required_metrics.json" ]] &&
+    [[ -d "$ROOT/results/S6_5_reliability_calibration/${name}_predictions/labels" ]]
 }
 
 eval_model() {
@@ -95,7 +95,7 @@ eval_model() {
 train_e6_seed() {
   local seed="$1"
   local name="seedfix_e6_seed${seed}_${TAG}"
-  local train_dir="$ROOT/results/val/${name}"
+  local train_dir="$ROOT/results/S6_5_reliability_calibration/${name}"
   local weights="$train_dir/weights/best.pt"
 
   if seed_outputs_complete "$name"; then
@@ -112,7 +112,7 @@ train_e6_seed() {
     --batch "$TRAIN_BATCH" \
     --workers "$TRAIN_WORKERS" \
     --device "$DEVICE" \
-    --project "$ROOT/results/val" \
+    --project "$ROOT/results/S6_5_reliability_calibration" \
     --name "$name" \
     --seed "$seed" \
     --close-mosaic 10 \
@@ -121,16 +121,16 @@ train_e6_seed() {
   echo "[seedfix] E6 seed=${seed} train done"
 
   eval_model "$weights" e6 \
-    "$ROOT/results/val/${name}_val" \
-    "$ROOT/results/val/${name}_object_level" \
-    "$ROOT/results/val/${name}_predictions"
+    "$ROOT/results/S6_5_reliability_calibration/${name}_val" \
+    "$ROOT/results/S6_5_reliability_calibration/${name}_object_level" \
+    "$ROOT/results/S6_5_reliability_calibration/${name}_predictions"
   echo "[seedfix] E6 seed=${seed} eval/export done"
 }
 
 train_e13_3b_seed() {
   local seed="$1"
   local name="$2"
-  local train_dir="$ROOT/results/val/${name}"
+  local train_dir="$ROOT/results/S6_5_reliability_calibration/${name}"
   local weights="$train_dir/weights/best.pt"
 
   if seed_outputs_complete "$name"; then
@@ -153,7 +153,7 @@ train_e13_3b_seed() {
     --batch "$TRAIN_BATCH" \
     --workers "$TRAIN_WORKERS" \
     --device "$DEVICE" \
-    --project "$ROOT/results/val" \
+    --project "$ROOT/results/S6_5_reliability_calibration" \
     --name "$name" \
     --seed "$seed" \
     --close-mosaic 10 \
@@ -162,9 +162,9 @@ train_e13_3b_seed() {
   echo "[seedfix] E13_3b seed=${seed} train done"
 
   eval_model "$weights" e13 \
-    "$ROOT/results/val/${name}_val" \
-    "$ROOT/results/val/${name}_object_level" \
-    "$ROOT/results/val/${name}_predictions"
+    "$ROOT/results/S6_5_reliability_calibration/${name}_val" \
+    "$ROOT/results/S6_5_reliability_calibration/${name}_object_level" \
+    "$ROOT/results/S6_5_reliability_calibration/${name}_predictions"
   echo "[seedfix] E13_3b seed=${seed} eval/export done"
 }
 

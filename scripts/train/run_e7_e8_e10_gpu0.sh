@@ -14,7 +14,7 @@ export PYTHONUNBUFFERED=1
 
 PY=/mnt/disk2/lhr/conda_envs/vsd/bin/python
 RUNNER=scripts/dark_small_experiment_runner.py
-LOG_DIR=/mnt/disk2/lhr/VSD/results/val/logs
+LOG_DIR=/mnt/disk2/lhr/VSD/results/S3_resolution_sampling/logs
 STATUS_FILE="${LOG_DIR}/e7_e8_e10_status.tsv"
 
 mkdir -p "${LOG_DIR}"
@@ -54,7 +54,7 @@ record_status E10_3 "paused_until_E10_2_beats_E6_640"
 record_status E10_4 "paused_until_E10_2_beats_E6_640"
 
 "${PY}" -u "${RUNNER}" aggregate || true
-"${PY}" -u scripts/render_key_result_figures.py --results-val /mnt/disk2/lhr/VSD/results/val || true
+"${PY}" -u scripts/render_key_result_figures.py --results-val /mnt/disk2/lhr/VSD/results/S3_resolution_sampling || true
 
 echo
 echo "===== $(date '+%F %T') E7/E8/E10 队列结束 ====="

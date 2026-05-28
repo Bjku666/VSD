@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""根据 results/val 中的指标文件重建关键结果图。
+"""根据 results 中的指标文件重建关键结果图。
 
 只生成最终结果图，不生成训练过程图：
 - required_metrics_overview.png

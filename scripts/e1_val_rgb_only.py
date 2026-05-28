@@ -707,7 +707,7 @@ def main() -> None:
     else:
         model_path = Path(args.model)
         run_name = model_path.parent.parent.name if len(model_path.parents) >= 2 else model_path.stem
-        out_dir = Path("/mnt/disk2/lhr/VSD/results/val") / f"{run_name}_{args.split}"
+        out_dir = Path("/mnt/disk2/lhr/VSD/results/S1_baselines") / f"{run_name}_{args.split}"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     if args.ultra_project.strip():

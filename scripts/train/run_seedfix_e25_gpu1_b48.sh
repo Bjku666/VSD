@@ -13,7 +13,7 @@ EVAL_BATCH="${EVAL_BATCH:-64}"
 EVAL_WORKERS="${EVAL_WORKERS:-12}"
 EPOCHS="${EPOCHS:-100}"
 TAG="${TAG:-seedfix_b48_20260527}"
-BASE_E6_WEIGHTS="${BASE_E6_WEIGHTS:-$ROOT/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt}"
+BASE_E6_WEIGHTS="${BASE_E6_WEIGHTS:-$ROOT/results/S2_fusion_mainline/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt}"
 
 cd "$ROOT"
 
@@ -22,10 +22,10 @@ echo "[seedfix-gpu1] base_e6_weights=${BASE_E6_WEIGHTS}"
 
 seed_outputs_complete() {
   local name="$1"
-  [[ -f "$ROOT/results/val/${name}/weights/best.pt" ]] &&
-    [[ -f "$ROOT/results/val/${name}_val/required_metrics.json" ]] &&
-    [[ -f "$ROOT/results/val/${name}_object_level/required_metrics.json" ]] &&
-    [[ -d "$ROOT/results/val/${name}_predictions/labels" ]]
+  [[ -f "$ROOT/results/S6_5_reliability_calibration/${name}/weights/best.pt" ]] &&
+    [[ -f "$ROOT/results/S6_5_reliability_calibration/${name}_val/required_metrics.json" ]] &&
+    [[ -f "$ROOT/results/S6_5_reliability_calibration/${name}_object_level/required_metrics.json" ]] &&
+    [[ -d "$ROOT/results/S6_5_reliability_calibration/${name}_predictions/labels" ]]
 }
 
 export_eval() {
@@ -80,7 +80,7 @@ eval_model() {
 train_e25_seed() {
   local seed="$1"
   local name="seedfix_e25_0_e13_3b_seed${seed}_${TAG}"
-  local train_dir="$ROOT/results/val/${name}"
+  local train_dir="$ROOT/results/S6_5_reliability_calibration/${name}"
   local weights="$train_dir/weights/best.pt"
   local last_weights="$train_dir/weights/last.pt"
   local resume_args=()
@@ -110,7 +110,7 @@ train_e25_seed() {
     --batch "$TRAIN_BATCH" \
     --workers "$TRAIN_WORKERS" \
     --device "$DEVICE" \
-    --project "$ROOT/results/val" \
+    --project "$ROOT/results/S6_5_reliability_calibration" \
     --name "$name" \
     --seed "$seed" \
     --close-mosaic 10 \
@@ -120,9 +120,9 @@ train_e25_seed() {
   echo "[seedfix-gpu1] E25_0 seed=${seed} train done"
 
   eval_model "$weights" \
-    "$ROOT/results/val/${name}_val" \
-    "$ROOT/results/val/${name}_object_level" \
-    "$ROOT/results/val/${name}_predictions"
+    "$ROOT/results/S6_5_reliability_calibration/${name}_val" \
+    "$ROOT/results/S6_5_reliability_calibration/${name}_object_level" \
+    "$ROOT/results/S6_5_reliability_calibration/${name}_predictions"
   echo "[seedfix-gpu1] E25_0 seed=${seed} eval/export done"
 }
 

@@ -14,12 +14,12 @@ set -euo pipefail
 ROOT="${ROOT:-/mnt/disk2/lhr/VSD}"
 PY="${PY:-/mnt/disk2/lhr/conda_envs/vsd/bin/python}"
 RUNNER="${ROOT}/scripts/dark_small_experiment_runner.py"
-LOG_DIR="${ROOT}/results/val/logs"
+LOG_DIR="${ROOT}/results/S6_5_reliability_calibration/logs"
 RUN_MODE="${RUN_MODE:-dry-run}"
 DEVICE="${DEVICE:-0,1}"
 BATCH_768="${BATCH_768:-32}"
 WORKERS="${WORKERS:-32}"
-E6_640_WEIGHTS="${E6_640_WEIGHTS:-${ROOT}/results/val/e6_feature_fusion_multiscale/weights/best.pt}"
+E6_640_WEIGHTS="${E6_640_WEIGHTS:-${ROOT}/results/S2_fusion_mainline/e6_feature_fusion_multiscale/weights/best.pt}"
 
 mkdir -p "${LOG_DIR}"
 cd "${ROOT}"
@@ -85,9 +85,9 @@ e11_1() {
       --batch 32 \
       --workers "${WORKERS}" \
       --device "${DEVICE}" \
-      --project "${ROOT}/results/val" \
+      --project "${ROOT}/results" \
       --name e11_1_e6_p2_head \
-      --validate-out "${ROOT}/results/val/e11_1_e6_p2_head_val" \
+      --validate-out "${ROOT}/results/S4_head_gate_loss/e11_1_e6_p2_head_val" \
       --dry-run
 }
 
@@ -104,9 +104,9 @@ e12_1() {
       --batch 32 \
       --workers "${WORKERS}" \
       --device "${DEVICE}" \
-      --project "${ROOT}/results/val" \
+      --project "${ROOT}/results" \
       --name e12_1_e6_residual_gated_fusion \
-      --validate-out "${ROOT}/results/val/e12_1_e6_residual_gated_fusion_val" \
+      --validate-out "${ROOT}/results/S4_head_gate_loss/e12_1_e6_residual_gated_fusion_val" \
       --dry-run
 }
 
@@ -133,7 +133,7 @@ e22_3() {
       --subsets dark low-contrast \
       --multiplier 2 \
       --out-yaml "${ROOT}/generated_data/e22_3_hard_negative_2x.yaml" \
-      --out-dir "${ROOT}/results/val/e22_3_hard_negative_2x" \
+      --out-dir "${ROOT}/results/e22_3_hard_negative_2x" \
       --dry-run
 }
 
@@ -151,13 +151,27 @@ E10_2, E11_1, E12_1, E12_1b, and E13_2 are implemented end to end. E22_3 remains
 EOF
 }
 
+stage_tag() {
+  case "$1" in
+    E10_2) echo "S3" ;;
+    E11_1|E12_1|E12_1b|E13_2) echo "S4" ;;
+    E22_3) echo "S6" ;;
+    *) echo "S?" ;;
+  esac
+}
+
+print_stage_header() {
+  local exp_id="$1"
+  echo "# $(stage_tag "${exp_id}") / ${exp_id}"
+}
+
 case "${1:-}" in
-  E10_2|e10_2) e10_2 ;;
-  E11_1|e11_1) e11_1 ;;
-  E12_1|e12_1) e12_1 ;;
-  E12_1b|e12_1b) e12_1b ;;
-  E13_2|e13_2) e13_2 ;;
-  E22_3|e22_3) e22_3 ;;
-  all) e10_2; echo; e11_1; echo; e12_1; echo; e12_1b; echo; e13_2; echo; e22_3 ;;
+  E10_2|e10_2) print_stage_header E10_2; e10_2 ;;
+  E11_1|e11_1) print_stage_header E11_1; e11_1 ;;
+  E12_1|e12_1) print_stage_header E12_1; e12_1 ;;
+  E12_1b|e12_1b) print_stage_header E12_1b; e12_1b ;;
+  E13_2|e13_2) print_stage_header E13_2; e13_2 ;;
+  E22_3|e22_3) print_stage_header E22_3; e22_3 ;;
+  all) print_stage_header E10_2; e10_2; echo; print_stage_header E11_1; e11_1; echo; print_stage_header E12_1; e12_1; echo; print_stage_header E12_1b; e12_1b; echo; print_stage_header E13_2; e13_2; echo; print_stage_header E22_3; e22_3 ;;
   *) usage; exit 2 ;;
 esac

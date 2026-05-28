@@ -20,7 +20,7 @@ from e14_cebs_core import E14CEBSTrainer
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("--mode", default="rgb_ir", choices=["rgb", "ir", "rgb_ir"])
-    parser.add_argument("--model", default="/mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt")
+    parser.add_argument("--model", default="/mnt/disk2/lhr/VSD/results/S2_fusion_mainline/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt")
     parser.add_argument("--data-rgb-ir", default="/mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/dronevehicle_resplit_rgb_ir.yaml")
     parser.add_argument("--data-ir", default="/mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/dronevehicle_resplit_ir.yaml")
     parser.add_argument("--epochs", type=int, default=100)
@@ -28,7 +28,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch", type=int, default=16)
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--device", default="0")
-    parser.add_argument("--project", default="/mnt/disk2/lhr/VSD/results/val")
+    parser.add_argument("--project", default="/mnt/disk2/lhr/VSD/results/S6_object_background_suppression")
     parser.add_argument("--name", default="e14_1_e6_cebs_a005")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--close-mosaic", type=int, default=10)

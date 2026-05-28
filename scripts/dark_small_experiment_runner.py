@@ -24,6 +24,14 @@ import yaml
 
 
 DEFAULT_MANIFEST = Path("/mnt/disk2/lhr/VSD/configs/experiments/dark_small_next.yaml")
+E6_GATE_BASELINE = {
+    "AP_dark-small_object": 0.100028,
+    "AP_tiny_object": 0.054049,
+    "AP_low-contrast_object": 0.246427,
+    "False Positives/image": 1.469027,
+    "FPPI_dark": 2.536932,
+    "FPPI_low-contrast": 1.612707,
+}
 
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -131,9 +139,26 @@ def _iter_images_from_entry(root: Path, entry: Any) -> list[Path]:
     return sorted(set(images))
 
 
+def _validate_train_reweight_source(subset_yaml: Path) -> None:
+    subset = _load_yaml(subset_yaml)
+    source = str(subset.get("source", ""))
+    allowed_taxonomy = str(subset.get("allowed_taxonomy", ""))
+    source_split = str(subset.get("source_split", "")).strip()
+    if source or allowed_taxonomy:
+        if source_split != "train":
+            raise ValueError(
+                f"blocked_train_reweight_source_split: {subset_yaml} must declare non-empty source_split='train'"
+            )
+        if allowed_taxonomy and allowed_taxonomy != "background_far":
+            raise ValueError(
+                f"blocked_train_reweight_taxonomy: {subset_yaml} allowed_taxonomy={allowed_taxonomy!r} is not train-allowed"
+            )
+
+
 def _make_reweighted_yaml(base_yaml: Path, subset_yaml: Path, multiplier: float, out_yaml: Path) -> None:
     if multiplier <= 1.0:
         raise ValueError("train_reweight.multiplier 必须大于 1")
+    _validate_train_reweight_source(subset_yaml)
     base = _load_yaml(base_yaml)
     subset = _load_yaml(subset_yaml)
     base_root = Path(base.get("path", "."))
@@ -366,6 +391,11 @@ def _fusion_model_steps(manifest: dict[str, Any], exp: dict[str, Any], work_dir:
         ):
             if exp_key in exp:
                 train.extend([cli_key, str(exp[exp_key])])
+        if str(exp.get("loss")) == "class-confusion-cls":
+            source = Path(str(exp.get("class_confusion_map", "")))
+            from e13_tiny_aware_loss_core import validate_class_confusion_source
+
+            validate_class_confusion_source(str(source))
     if kind == "e12" and "gate_lambda" in exp:
         train.extend(["--gate-lambda", str(exp["gate_lambda"])])
     if kind == "e14":
@@ -469,6 +499,12 @@ def _metric_path_for(exp: dict[str, Any]) -> Path | None:
 
 def _metric_value(metrics: dict[str, Any], key: str) -> float | None:
     if key in metrics:
+        try:
+            return float(metrics[key])
+        except Exception:
+            return None
+    std_key = f"{key}_std"
+    if std_key in metrics:
         try:
             return float(metrics[key])
         except Exception:
@@ -705,11 +741,11 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     p_run.add_argument("--stage", default=None)
     p_run.add_argument("--dry-run", action="store_true")
     p_run.add_argument("--only", nargs="*", choices=["train", "validate", "fusion_validate"])
-    p_run.add_argument("--work-dir", default="/mnt/disk2/lhr/VSD/results/val/work")
+    p_run.add_argument("--work-dir", default="/mnt/disk2/lhr/VSD/results/S6_5_reliability_calibration/work")
     p_run.set_defaults(func=cmd_run)
 
     p_ag = sub.add_parser("aggregate", help="汇总已有指标并写出排行榜。")
-    p_ag.add_argument("--out-dir", default="/mnt/disk2/lhr/VSD/results/val")
+    p_ag.add_argument("--out-dir", default="/mnt/disk2/lhr/VSD/results")
     p_ag.add_argument("--no-baselines", action="store_true")
     p_ag.set_defaults(func=cmd_aggregate)
 

@@ -14,7 +14,7 @@ scripts_dir = os.environ.get("VSD_E6_SCRIPTS_DIR", "") or str(Path(__file__).res
 if scripts_dir and scripts_dir not in sys.path:
     sys.path.insert(0, scripts_dir)
 
-from e13_tiny_aware_loss_core import E13DetectionTrainer
+from e13_tiny_aware_loss_core import E13DetectionTrainer, validate_class_confusion_source
 
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -28,7 +28,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mode", type=str, default="rgb_ir", choices=["rgb", "ir", "rgb_ir"])
     parser.add_argument("--base", type=str, default="e6", help="Compatibility flag for demo scripts; E13 currently derives from E6.")
     parser.add_argument("--loss", type=str, default="scale-aware", choices=["baseline", "scale-aware", "center-aware", "scale-center-aware", "class-confusion-cls"])
-    parser.add_argument("--model", type=str, default="/mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt")
+    parser.add_argument("--model", type=str, default="/mnt/disk2/lhr/VSD/results/S2_fusion_mainline/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt")
     parser.add_argument("--data-rgb", type=str, default="/mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/dronevehicle_resplit_rgb.yaml")
     parser.add_argument("--data-rgb-ir", type=str, default="/mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/dronevehicle_resplit_rgb_ir.yaml")
     parser.add_argument("--data-ir", type=str, default="/mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/dronevehicle_resplit_ir.yaml")
@@ -37,7 +37,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch", type=int, default=32)
     parser.add_argument("--workers", type=int, default=32)
     parser.add_argument("--device", type=str, default="0,1")
-    parser.add_argument("--project", type=str, default="/mnt/disk2/lhr/VSD/results/val")
+    parser.add_argument("--project", type=str, default="/mnt/disk2/lhr/VSD/results/S4_head_gate_loss")
     parser.add_argument("--name", type=str, default="e13_2_e6_scale_aware_loss")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--close-mosaic", type=int, default=10)
@@ -129,6 +129,39 @@ def main() -> None:
         print(json.dumps(payload, ensure_ascii=False, indent=2), flush=True)
         return
     print(json.dumps(payload, ensure_ascii=False, indent=2), flush=True)
+
+    if args.loss == "class-confusion-cls":
+        try:
+            source_check = validate_class_confusion_source(args.class_confusion_map)
+        except Exception as exc:
+            print(
+                json.dumps(
+                    {
+                        "script": Path(__file__).name,
+                        "status": "blocked_class_confusion_source_split",
+                        "time": datetime.now().isoformat(timespec="seconds"),
+                        "class_confusion_map": args.class_confusion_map,
+                        "reason": str(exc),
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                flush=True,
+            )
+            raise SystemExit(77) from exc
+        print(
+            json.dumps(
+                {
+                    "script": Path(__file__).name,
+                    "status": "class_confusion_source_train_only_pass",
+                    "time": datetime.now().isoformat(timespec="seconds"),
+                    **source_check,
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            flush=True,
+        )
 
     is_seedfix_e25 = args.name.startswith("seedfix_e25_0_")
     is_seedfix_e13_3b = args.name.startswith("seedfix_e13_3b_")

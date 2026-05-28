@@ -24,14 +24,14 @@ from PIL import Image, ImageDraw
 
 ROOT = Path("/mnt/disk2/lhr/VSD")
 DATA_RGB_IR = ROOT / "configs/dronevehicle_resplit/dronevehicle_resplit_rgb_ir.yaml"
-TRAIN_PRED_DIR = ROOT / "results/val/e20_train_for_e22_hn/predictions/E6/labels"
-VAL_PRED_DIR = ROOT / "results/val/e20_0_error_delta_analysis/predictions/E6/labels"
-TRAIN_E22 = ROOT / "results/val/e22_0_train_hard_negative_taxonomy/hard_negative_list.csv"
-VAL_E22 = ROOT / "results/val/e22_0_hard_negative_taxonomy/hard_negative_list.csv"
-E6_WEIGHTS = ROOT / "results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt"
-E6_REQUIRED = ROOT / "results/val/e6_feature_fusion_multiscale_val/required_metrics.json"
-E6_OBJECT = ROOT / "results/val/e23_object_level_evaluator/required_metrics.json"
-OBJECT_SUBSET_ROOT = ROOT / "results/val/e23_object_level_evaluator/object_level_subsets"
+TRAIN_PRED_DIR = ROOT / "results/S5_diagnostic_optimization/e20_train_for_e22_hn/predictions/E6/labels"
+VAL_PRED_DIR = ROOT / "results/S5_diagnostic_optimization/e20_0_error_delta_analysis/predictions/E6/labels"
+TRAIN_E22 = ROOT / "results/S5_diagnostic_optimization/e22_0_train_hard_negative_taxonomy/hard_negative_list.csv"
+VAL_E22 = ROOT / "results/S5_diagnostic_optimization/e22_0_hard_negative_taxonomy/hard_negative_list.csv"
+E6_WEIGHTS = ROOT / "results/S2_fusion_mainline/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt"
+E6_REQUIRED = ROOT / "results/S2_fusion_mainline/e6_feature_fusion_multiscale_val/required_metrics.json"
+E6_OBJECT = ROOT / "results/S6_object_background_suppression/e23_object_level_evaluator/required_metrics.json"
+OBJECT_SUBSET_ROOT = ROOT / "results/S6_object_background_suppression/e23_object_level_evaluator/object_level_subsets"
 
 
 @dataclass(frozen=True)
@@ -544,15 +544,15 @@ def run_e25_0(args: argparse.Namespace) -> None:
     rows: list[dict[str, Any]] = []
     key_metric_sets: list[dict[str, Any]] = []
     for seed in seeds:
-        train_dir = ROOT / f"results/val/e25_0_e13_3b_seed{seed}"
-        val_dir = ROOT / f"results/val/e25_0_e13_3b_seed{seed}_val"
+        train_dir = ROOT / f"results/S6_5_reliability_calibration/e25_0_e13_3b_seed{seed}"
+        val_dir = ROOT / f"results/S6_5_reliability_calibration/e25_0_e13_3b_seed{seed}_val"
         best_weights = train_dir / "weights/best.pt"
         last_weights = train_dir / "weights/last.pt"
         args_yaml = train_dir / "args.yaml"
         required = val_dir / "required_metrics.json"
-        object_required = ROOT / f"results/val/e25_0_e13_3b_seed{seed}_object_level/required_metrics.json"
+        object_required = ROOT / f"results/S6_5_reliability_calibration/e25_0_e13_3b_seed{seed}_object_level/required_metrics.json"
         prediction_label_dirs = [
-            ROOT / f"results/val/e25_0_e13_3b_seed{seed}_predictions/labels",
+            ROOT / f"results/S6_5_reliability_calibration/e25_0_e13_3b_seed{seed}_predictions/labels",
             val_dir / "labels",
             val_dir / "predictions/labels",
         ]
@@ -655,7 +655,7 @@ def run_e25_1(args: argparse.Namespace) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     train = load_split("train", TRAIN_PRED_DIR)
     val = load_split("val", VAL_PRED_DIR)
-    thresholds = load_json(ROOT / "results/dataset_audit/train_thresholds.json")
+    thresholds = load_json(ROOT / "results/S0_data_protocol/dataset_audit/train_thresholds.json")
     tiny_area = float(thresholds.get("object_area_tiny_threshold", 880.0))
     small_area = float(thresholds.get("object_area_small_threshold", 1288.0))
     dark_small_stems, dark_small_gt = read_object_subset("dark-small_object")
@@ -937,13 +937,13 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     sub = parser.add_subparsers(dest="command", required=True)
     p0 = sub.add_parser("e25_0")
-    p0.add_argument("--out-dir", default=str(ROOT / "results/val/e25_0_e13_3b_multiseed_rerun"))
+    p0.add_argument("--out-dir", default=str(ROOT / "results/S6_5_reliability_calibration/e25_0_e13_3b_multiseed_rerun"))
     p0.set_defaults(func=run_e25_0)
     p1 = sub.add_parser("e25_1")
-    p1.add_argument("--out-dir", default=str(ROOT / "results/val/e25_1_e6_calibration_sweep"))
+    p1.add_argument("--out-dir", default=str(ROOT / "results/S6_5_reliability_calibration/e25_1_e6_calibration_sweep"))
     p1.set_defaults(func=run_e25_1)
     p2 = sub.add_parser("e26_1")
-    p2.add_argument("--out-dir", default=str(ROOT / "results/val/e26_1_classwise_threshold_calibration"))
+    p2.add_argument("--out-dir", default=str(ROOT / "results/S6_5_reliability_calibration/e26_1_classwise_threshold_calibration"))
     p2.set_defaults(func=run_e26_1)
     return parser.parse_args()
 

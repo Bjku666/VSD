@@ -1597,7 +1597,7 @@ def parse_args() -> argparse.Namespace:
         "--log-root",
         dest="report_root",
         type=Path,
-        default=Path("/mnt/disk2/lhr/VSD/results/dataset_audit"),
+        default=Path("/mnt/disk2/lhr/VSD/results/S0_data_protocol/dataset_audit"),
     )
     parser.add_argument("--iou-warn-threshold", type=float, default=0.90)
     parser.add_argument("--crop-border", type=int, default=CROP_BORDER_PX)

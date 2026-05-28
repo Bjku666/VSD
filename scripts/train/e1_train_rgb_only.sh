@@ -15,8 +15,8 @@ MODE="${5:-bg}"
 IMGSZ="${6:-640}"
 CLOSE_MOSAIC="${7:-10}"
 
-PROJECT_DIR="/mnt/disk2/lhr/VSD/results/val"
-LOG_DIR="/mnt/disk2/lhr/VSD/results/val/logs"
+PROJECT_DIR="/mnt/disk2/lhr/VSD/results/S1_baselines"
+LOG_DIR="/mnt/disk2/lhr/VSD/results/S1_baselines/logs"
 TS="$(date +%Y%m%d_%H%M%S)"
 LOG_FILE="${LOG_DIR}/${RUN_NAME}_gpu${DEVICE//,/+}_${TS}.log"
 

@@ -105,13 +105,13 @@ def _audit_run(run_dir: Path, val_dir: Path, log_path: Path) -> dict[str, Any]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument("--seed1-run", default="/mnt/disk2/lhr/VSD/results/val/e18_5_e13_3b_seed1")
-    parser.add_argument("--seed2-run", default="/mnt/disk2/lhr/VSD/results/val/e18_6_e13_3b_seed2")
-    parser.add_argument("--seed1-val", default="/mnt/disk2/lhr/VSD/results/val/e18_5_e13_3b_seed1_val")
-    parser.add_argument("--seed2-val", default="/mnt/disk2/lhr/VSD/results/val/e18_6_e13_3b_seed2_val")
-    parser.add_argument("--seed1-log", default="/mnt/disk2/lhr/VSD/results/val/logs/e18_5_e13_3b_seed1_b16w4_gpu0_20260523.log")
-    parser.add_argument("--seed2-log", default="/mnt/disk2/lhr/VSD/results/val/logs/e18_6_e13_3b_seed2_b16w4_gpu1_20260524.log")
-    parser.add_argument("--out-dir", default="/mnt/disk2/lhr/VSD/results/val/e18_check_e13_3b_seed_integrity")
+    parser.add_argument("--seed1-run", default="/mnt/disk2/lhr/VSD/results/S5_diagnostic_optimization/e18_5_e13_3b_seed1")
+    parser.add_argument("--seed2-run", default="/mnt/disk2/lhr/VSD/results/S5_diagnostic_optimization/e18_6_e13_3b_seed2")
+    parser.add_argument("--seed1-val", default="/mnt/disk2/lhr/VSD/results/S5_diagnostic_optimization/e18_5_e13_3b_seed1_val")
+    parser.add_argument("--seed2-val", default="/mnt/disk2/lhr/VSD/results/S5_diagnostic_optimization/e18_6_e13_3b_seed2_val")
+    parser.add_argument("--seed1-log", default="/mnt/disk2/lhr/VSD/results/S5_diagnostic_optimization/logs/e18_5_e13_3b_seed1_b16w4_gpu0_20260523.log")
+    parser.add_argument("--seed2-log", default="/mnt/disk2/lhr/VSD/results/S5_diagnostic_optimization/logs/e18_6_e13_3b_seed2_b16w4_gpu1_20260524.log")
+    parser.add_argument("--out-dir", default="/mnt/disk2/lhr/VSD/results/S6_object_background_suppression/e18_check_e13_3b_seed_integrity")
     return parser.parse_args()
 
 

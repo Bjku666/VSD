@@ -8,7 +8,7 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate /mnt/disk2/lhr/conda_envs/vsd
 
 SPLIT="${1:-val}"
-MODEL_PATH="${2:-/mnt/disk2/lhr/VSD/results/val/e1_yolo11n_rgb_only_640_ddp/weights/best.pt}"
+MODEL_PATH="${2:-/mnt/disk2/lhr/VSD/results/S1_baselines/e1_yolo11n_rgb_only_640_ddp/weights/best.pt}"
 RUN_NAME="$(basename "$(dirname "$(dirname "$MODEL_PATH")")")"
 OUT_DIR="${3:-/mnt/disk2/lhr/VSD/results/${SPLIT}/${RUN_NAME}_${SPLIT}}"
 DEVICE="${4:-0}"

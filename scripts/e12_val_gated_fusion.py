@@ -435,7 +435,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--out-dir",
         type=str,
-        default="/mnt/disk2/lhr/VSD/results/val/e12_1_residual_gated_fusion_val",
+        default="/mnt/disk2/lhr/VSD/results/S4_head_gate_loss/e12_1_residual_gated_fusion_val",
     )
     parser.add_argument("--exist-ok", action="store_true")
     return parser.parse_args()

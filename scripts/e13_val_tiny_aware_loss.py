@@ -426,7 +426,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--out-dir",
         type=str,
-        default="/mnt/disk2/lhr/VSD/results/val/e6_feature_fusion_multiscale_val",
+        default="/mnt/disk2/lhr/VSD/results/S2_fusion_mainline/e6_feature_fusion_multiscale_val",
     )
     parser.add_argument("--exist-ok", action="store_true")
     return parser.parse_args()

@@ -14,8 +14,8 @@ RUN_NAME="${4:-yolo11n_e5_rgb_ir_640_ddp}"
 WORKERS="${5:-16}"
 MODE="${6:-bg}"
 
-PROJECT_DIR="/mnt/disk2/lhr/VSD/results/val"
-LOG_DIR="/mnt/disk2/lhr/VSD/results/val/logs"
+PROJECT_DIR="/mnt/disk2/lhr/VSD/results/S2_fusion_mainline"
+LOG_DIR="/mnt/disk2/lhr/VSD/results/S2_fusion_mainline/logs"
 TS="$(date +%Y%m%d_%H%M%S)"
 LOG_FILE="${LOG_DIR}/${RUN_NAME}_${FUSION_MODE}_gpu${DEVICE//,/+}_${TS}.log"
 

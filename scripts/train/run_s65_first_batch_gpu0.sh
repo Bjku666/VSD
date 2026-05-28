@@ -21,10 +21,10 @@ echo "[S6.5-A] E26_1_full done"
 
 for seed in 42 43 44; do
   train_name="e25_0_e13_3b_seed${seed}"
-  val_dir="$ROOT/results/val/${train_name}_val"
-  obj_dir="$ROOT/results/val/${train_name}_object_level"
-  pred_dir="$ROOT/results/val/${train_name}_predictions"
-  weights="$ROOT/results/val/${train_name}/weights/best.pt"
+  val_dir="$ROOT/results/S6_5_reliability_calibration/${train_name}_val"
+  obj_dir="$ROOT/results/S6_5_reliability_calibration/${train_name}_object_level"
+  pred_dir="$ROOT/results/S6_5_reliability_calibration/${train_name}_predictions"
+  weights="$ROOT/results/S6_5_reliability_calibration/${train_name}/weights/best.pt"
 
   echo "[S6.5-A] E25_0 seed=${seed} train start"
   "$PY" scripts/e13_train_tiny_aware_loss.py \
@@ -35,13 +35,13 @@ for seed in 42 43 44; do
     --small-px 32.0 \
     --center-alpha 0.25 \
     --center-max 4.0 \
-    --model "$ROOT/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt" \
+    --model "$ROOT/results/S2_fusion_mainline/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt" \
     --epochs 100 \
     --imgsz 640 \
     --batch 16 \
     --workers 8 \
     --device 0 \
-    --project "$ROOT/results/val" \
+    --project "$ROOT/results/S6_5_reliability_calibration" \
     --name "$train_name" \
     --seed "$seed" \
     --close-mosaic 10 \

@@ -52,7 +52,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch", type=int, default=64)
     parser.add_argument("--workers", type=int, default=16)
     parser.add_argument("--device", type=str, default="0")
-    parser.add_argument("--project", type=str, default="/mnt/disk2/lhr/VSD/results/val")
+    parser.add_argument("--project", type=str, default="/mnt/disk2/lhr/VSD/results/S2_fusion_mainline")
     parser.add_argument("--name", type=str, default="yolo11n_e6_rgb_ir_640")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--close-mosaic", type=int, default=10)

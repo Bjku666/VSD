@@ -37,6 +37,8 @@ E6_BASELINE = {
     "FPPI_dark": 2.536932,
     "FPPI_low-contrast": 1.612707,
     "AP_dark-small_object": 0.100028,
+    "AP_tiny_object": 0.054049,
+    "AP_low-contrast_object": 0.246427,
 }
 
 
@@ -307,10 +309,12 @@ def run_e25_1_full(args: argparse.Namespace) -> None:
     best_low_fp = min((r for r in rows if float(r["val_recall"]) >= 0.90), key=lambda r: float(r["val_fp_per_image"]), default=min(rows, key=lambda r: float(r["val_fp_per_image"])))
     accepted = [
         r for r in rows
-        if float(r["AP_dark-small_object"]) >= 0.098
+        if float(r["AP_dark-small_object"]) >= E6_BASELINE["AP_dark-small_object"]
         and float(r["val_fp_per_image"]) < E6_BASELINE["False Positives/image"]
         and float(r["val_fppi_dark"]) < E6_BASELINE["FPPI_dark"]
         and float(r["val_fppi_low_contrast"]) < E6_BASELINE["FPPI_low-contrast"]
+        and float(r["AP_tiny_object"]) >= E6_BASELINE["AP_tiny_object"]
+        and float(r["AP_low-contrast_object"]) >= E6_BASELINE["AP_low-contrast_object"]
     ]
     best_accept = max(accepted, key=score) if accepted else None
     best = {
@@ -421,9 +425,12 @@ def run_e26_1_full(args: argparse.Namespace) -> None:
     }
     (out_dir / "best_operating_points.json").write_text(json.dumps(best, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     passed = (
-        float(val_metrics["fp_per_image"]) <= 1.20
-        and float(val_metrics["fppi_dark"]) <= 1.90
-        and float(object_metrics["AP_dark-small_object"]) >= 0.098
+        float(object_metrics["AP_dark-small_object"]) >= E6_BASELINE["AP_dark-small_object"]
+        and float(val_metrics["fp_per_image"]) < E6_BASELINE["False Positives/image"]
+        and float(val_metrics["fppi_dark"]) < E6_BASELINE["FPPI_dark"]
+        and float(val_metrics["fppi_low_contrast"]) < E6_BASELINE["FPPI_low-contrast"]
+        and float(object_metrics["AP_tiny_object"]) >= E6_BASELINE["AP_tiny_object"]
+        and float(object_metrics["AP_low-contrast_object"]) >= E6_BASELINE["AP_low-contrast_object"]
     )
     required = {
         "Precision": val_metrics["precision"],

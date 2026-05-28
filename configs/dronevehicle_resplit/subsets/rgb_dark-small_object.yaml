@@ -1,4 +1,4 @@
-path: /mnt/disk2/lhr/VSD/results/val/object_level_subsets/dark-small_object/rgb
+path: /mnt/disk2/lhr/VSD/results/S6_object_background_suppression/object_level_subsets/dark-small_object/rgb
 val: images/val
 names:
   0: car

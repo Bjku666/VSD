@@ -17,8 +17,8 @@ import yaml
 
 ROOT = Path("/mnt/disk2/lhr/VSD")
 MANIFEST = ROOT / "configs/experiments/dark_small_next.yaml"
-LEADERBOARD_CSV = ROOT / "results/val/dark_small_experiment_leaderboard.csv"
-OUT_DIR = ROOT / "results/val/s6_repro_audit"
+LEADERBOARD_CSV = ROOT / "results/dark_small_experiment_leaderboard.csv"
+OUT_DIR = ROOT / "results/S6_object_background_suppression/s6_repro_audit"
 
 S6_IDS = [
     "E18_check",
@@ -295,7 +295,7 @@ def audit(args: argparse.Namespace) -> tuple[list[Check], list[dict[str, Any]], 
         train_list = Path(str(hn.get("train", "")))
         add_check(checks, "hn_train_image_list_exists", train_list.exists(), rel(train_list))
 
-    e18_summary = ROOT / "results/val/e18_check_e13_3b_seed_integrity/summary.json"
+    e18_summary = ROOT / "results/S6_object_background_suppression/e18_check_e13_3b_seed_integrity/summary.json"
     add_check(checks, "e18_summary_exists", e18_summary.exists(), rel(e18_summary))
     if e18_summary.exists():
         e18 = read_json(e18_summary)
@@ -311,17 +311,17 @@ def audit(args: argparse.Namespace) -> tuple[list[Check], list[dict[str, Any]], 
             )
 
     for log in [
-        ROOT / "results/val/logs/e13_3b_light_target_center_loss_gpu0_20260524_143843.log",
-        ROOT / "results/val/logs/e22_2a_e6_background_far_hn15_gpu0_b48_20260525_1800.log",
-        ROOT / "results/val/logs/e22_2a_e6_background_far_hn15_val_gpu0_20260526_0008.log",
-        ROOT / "results/val/logs/e22_2a_hn15_object_eval_gpu0_20260526_0012.log",
-        ROOT / "results/val/logs/e22_2b_e6_background_far_hn2_gpu1_b48_20260525_1935.log",
-        ROOT / "results/val/logs/e22_2b_hn2_unified_val_gpu1_20260526.log",
-        ROOT / "results/val/logs/e22_2b_hn2_object_eval_gpu1_20260526.log",
-        ROOT / "results/val/logs/e14_1_e6_cebs_a005_object_eval_gpu0_20260525_1626.log",
-        ROOT / "results/val/logs/e14_2_e6_cebs_a010_object_eval_gpu0_20260525_1231.log",
-        ROOT / "results/val/logs/e14_3_cebs_a005_unified_val_gpu0_20260526.log",
-        ROOT / "results/val/logs/e14_3_cebs_a005_object_eval_gpu0_20260526.log",
+        ROOT / "results/S6_object_background_suppression/logs/e13_3b_light_target_center_loss_gpu0_20260524_143843.log",
+        ROOT / "results/S6_object_background_suppression/logs/e22_2a_e6_background_far_hn15_gpu0_b48_20260525_1800.log",
+        ROOT / "results/S6_object_background_suppression/logs/e22_2a_e6_background_far_hn15_val_gpu0_20260526_0008.log",
+        ROOT / "results/S6_object_background_suppression/logs/e22_2a_hn15_object_eval_gpu0_20260526_0012.log",
+        ROOT / "results/S6_object_background_suppression/logs/e22_2b_e6_background_far_hn2_gpu1_b48_20260525_1935.log",
+        ROOT / "results/S6_object_background_suppression/logs/e22_2b_hn2_unified_val_gpu1_20260526.log",
+        ROOT / "results/S6_object_background_suppression/logs/e22_2b_hn2_object_eval_gpu1_20260526.log",
+        ROOT / "results/S6_object_background_suppression/logs/e14_1_e6_cebs_a005_object_eval_gpu0_20260525_1626.log",
+        ROOT / "results/S6_object_background_suppression/logs/e14_2_e6_cebs_a010_object_eval_gpu0_20260525_1231.log",
+        ROOT / "results/S6_object_background_suppression/logs/e14_3_cebs_a005_unified_val_gpu0_20260526.log",
+        ROOT / "results/S6_object_background_suppression/logs/e14_3_cebs_a005_object_eval_gpu0_20260526.log",
     ]:
         add_check(checks, f"log.exists.{log.name}", log.exists(), rel(log))
         if log.exists():

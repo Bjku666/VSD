@@ -37,15 +37,15 @@ from e13_tiny_aware_loss_core import E13DetectionTrainer
 MODEL_SPECS = {
     "E6": {
         "trainer": E6DetectionTrainer,
-        "weights": "/mnt/disk2/lhr/VSD/results/val/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt",
+        "weights": "/mnt/disk2/lhr/VSD/results/S2_fusion_mainline/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt",
     },
     "E12_1": {
         "trainer": E12DetectionTrainer,
-        "weights": "/mnt/disk2/lhr/VSD/results/val/e12_1_residual_gated_fusion/weights/best.pt",
+        "weights": "/mnt/disk2/lhr/VSD/results/S4_head_gate_loss/e12_1_residual_gated_fusion/weights/best.pt",
     },
     "E13_2": {
         "trainer": E13DetectionTrainer,
-        "weights": "/mnt/disk2/lhr/VSD/results/val/e13_2_e6_scale_aware_loss/weights/best.pt",
+        "weights": "/mnt/disk2/lhr/VSD/results/S4_head_gate_loss/e13_2_e6_scale_aware_loss/weights/best.pt",
     },
 }
 
@@ -301,7 +301,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--data-rgb-ir", default="/mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/dronevehicle_resplit_rgb_ir.yaml")
     parser.add_argument("--data-ir", default="/mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/dronevehicle_resplit_ir.yaml")
     parser.add_argument("--split", default="val", choices=["train", "val"])
-    parser.add_argument("--out-dir", default="/mnt/disk2/lhr/VSD/results/val/e20_0_error_delta_analysis")
+    parser.add_argument("--out-dir", default="/mnt/disk2/lhr/VSD/results/S5_diagnostic_optimization/e20_0_error_delta_analysis")
     parser.add_argument("--imgsz", type=int, default=640)
     parser.add_argument("--batch", type=int, default=16)
     parser.add_argument("--workers", type=int, default=8)

@@ -62,13 +62,13 @@ def _read_text(path: Path) -> str:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument("--out-dir", default="/mnt/disk2/lhr/VSD/results/val/e13_loss_check")
-    parser.add_argument("--e13-2-dir", default="/mnt/disk2/lhr/VSD/results/val/e13_2_e6_scale_aware_loss")
-    parser.add_argument("--e13-3-dir", default="/mnt/disk2/lhr/VSD/results/val/e13_3_e6_center_aware_loss")
-    parser.add_argument("--e13-2-val", default="/mnt/disk2/lhr/VSD/results/val/e13_2_e6_scale_aware_loss_val")
-    parser.add_argument("--e13-3-val", default="/mnt/disk2/lhr/VSD/results/val/e13_3_e6_center_aware_loss_val")
-    parser.add_argument("--e13-2-log", default="/mnt/disk2/lhr/VSD/results/val/logs/e13_2_scale_aware_loss_20260520.log")
-    parser.add_argument("--e13-3-log", default="/mnt/disk2/lhr/VSD/results/val/logs/e13_3_center_aware_loss_20260520.log")
+    parser.add_argument("--out-dir", default="/mnt/disk2/lhr/VSD/results/S5_diagnostic_optimization/e13_loss_check")
+    parser.add_argument("--e13-2-dir", default="/mnt/disk2/lhr/VSD/results/S4_head_gate_loss/e13_2_e6_scale_aware_loss")
+    parser.add_argument("--e13-3-dir", default="/mnt/disk2/lhr/VSD/results/S4_head_gate_loss/e13_3_e6_center_aware_loss")
+    parser.add_argument("--e13-2-val", default="/mnt/disk2/lhr/VSD/results/S4_head_gate_loss/e13_2_e6_scale_aware_loss_val")
+    parser.add_argument("--e13-3-val", default="/mnt/disk2/lhr/VSD/results/S4_head_gate_loss/e13_3_e6_center_aware_loss_val")
+    parser.add_argument("--e13-2-log", default="/mnt/disk2/lhr/VSD/results/S4_head_gate_loss/logs/e13_2_scale_aware_loss_20260520.log")
+    parser.add_argument("--e13-3-log", default="/mnt/disk2/lhr/VSD/results/S4_head_gate_loss/logs/e13_3_center_aware_loss_20260520.log")
     parser.add_argument("--core", default="/mnt/disk2/lhr/VSD/scripts/e13_tiny_aware_loss_core.py")
     return parser.parse_args()
 

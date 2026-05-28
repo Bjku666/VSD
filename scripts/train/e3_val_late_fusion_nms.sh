@@ -8,8 +8,8 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate /mnt/disk2/lhr/conda_envs/vsd
 
 SPLIT="${1:-val}"
-RGB_MODEL="${2:-/mnt/disk2/lhr/VSD/results/val/e1_yolo11n_rgb_only_640_ddp/weights/best.pt}"
-IR_MODEL="${3:-/mnt/disk2/lhr/VSD/results/val/e2_yolo11n_ir_only_640_ddp/weights/best.pt}"
+RGB_MODEL="${2:-/mnt/disk2/lhr/VSD/results/S1_baselines/e1_yolo11n_rgb_only_640_ddp/weights/best.pt}"
+IR_MODEL="${3:-/mnt/disk2/lhr/VSD/results/S1_baselines/e2_yolo11n_ir_only_640_ddp/weights/best.pt}"
 OUT_DIR="${4:-/mnt/disk2/lhr/VSD/results/${SPLIT}/e3_late_fusion_nms_${SPLIT}}"
 DEVICE="${5:-0}"
 BATCH="${6:-16}"

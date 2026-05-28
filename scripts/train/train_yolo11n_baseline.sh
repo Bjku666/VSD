@@ -11,5 +11,5 @@ yolo detect train \
     batch=16 \
     device=1 \
     workers=8 \
-    project=/mnt/disk2/lhr/VSD/results/val \
+    project=/mnt/disk2/lhr/VSD/results/S1_baselines \
     name=yolo11n_baseline

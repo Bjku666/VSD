@@ -4,11 +4,11 @@
 默认只打印将删除的内容；加 `--apply` 才会真正删除。
 清理策略：
 1. 保留训练权重、args.yaml、results.csv、metrics_summary、required_metrics。
-2. 删除 results/val 下 Ultralytics 自动生成的重复图片目录。
-3. 删除 experiments/e3/e4 中已经汇总到 results/val 的阶段性验证图片目录。
+2. 删除 results 下 Ultralytics 自动生成的重复图片目录。
+3. 删除 experiments/e3/e4 中已经汇总到 results 的阶段性验证图片目录。
 4. 删除 experiments 中训练过程自动生成的图片。
 5. 删除 e3/e4 的推理缓存 pred_cache.pkl。
-6. 保留 results/val 中的最终关键图片。
+6. 保留 results 中的最终关键图片。
 7. 删除空的 results/test 占位目录。
 """
 
@@ -36,14 +36,14 @@ def _existing(paths: list[DeleteTarget]) -> list[DeleteTarget]:
 def collect_targets(root: Path) -> list[DeleteTarget]:
     targets: list[DeleteTarget] = []
 
-    # results/val 中的 ultralytics_val 是验证脚本的中间图和原生统计图；
+    # results 中的 ultralytics_val 是验证脚本的中间图和原生统计图；
     # 核心指标已经落在同级 metrics_summary/required_metrics 文件中。
     for path in sorted((root / "results" / "val").glob("*/ultralytics_val")):
-        targets.append(DeleteTarget(path, "results/val 下的 Ultralytics 重复验证图目录"))
+        targets.append(DeleteTarget(path, "results 下的 Ultralytics 重复验证图目录"))
 
     # E5/E6 验证临时 YAML 已经可以由脚本再生成，不需要作为最终结果保存。
     for path in sorted((root / "results" / "val").glob("*/_generated_eval_data")):
-        targets.append(DeleteTarget(path, "results/val 下的临时验证 YAML 目录"))
+        targets.append(DeleteTarget(path, "results 下的临时验证 YAML 目录"))
 
     # test 目录当前只有占位小文件，未形成有效测试结果。
     test_dir = root / "results" / "test"
@@ -51,7 +51,7 @@ def collect_targets(root: Path) -> list[DeleteTarget]:
         targets.append(DeleteTarget(test_dir, "未使用的 results/test 占位目录"))
 
     # experiments/e3/e4 中这些目录是阶段复跑的验证产物；
-    # canonical 指标已经保存在 results/val/e3/e4 对应目录。
+    # canonical 指标已经保存在 results/e3/e4 对应目录。
     fusion_patterns = [
         root / "experiments" / "e3_late_fusion_nms" / "e3_stage1_rerun",
         root / "experiments" / "e4_late_fusion_wbf" / "e4_wbf_grid_search_20260318_174347",
@@ -60,12 +60,12 @@ def collect_targets(root: Path) -> list[DeleteTarget]:
         for name in ("rgb_only", "ir_only", "late_fusion_nms", "late_fusion_wbf_best", "figures"):
             path = base / name
             if path.exists():
-                targets.append(DeleteTarget(path, "experiments 下已汇总到 results/val 的阶段验证产物"))
+                targets.append(DeleteTarget(path, "experiments 下已汇总到 results 的阶段验证产物"))
         cache_path = base / "pred_cache.pkl"
         if cache_path.exists():
             targets.append(DeleteTarget(cache_path, "experiments 下可重新生成的推理缓存"))
 
-    # e4 早期 equal_weight 验证目录也已有 results/val/e4_late_fusion_wbf_val 作为统一入口。
+    # e4 早期 equal_weight 验证目录也已有 results/S1_baselines/e4_late_fusion_wbf_val 作为统一入口。
     equal_weight_val = (
         root
         / "experiments"

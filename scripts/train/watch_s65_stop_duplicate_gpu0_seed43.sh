@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PARENT_PID="${1:-498029}"
-LOG="${2:-/mnt/disk2/lhr/VSD/results/val/logs/s65_stop_duplicate_gpu0_seed43.log}"
+LOG="${2:-/mnt/disk2/lhr/VSD/results/S6_5_reliability_calibration/logs/s65_stop_duplicate_gpu0_seed43.log}"
 
 echo "[watch] parent=${PARENT_PID} start $(date --iso-8601=seconds)" >> "$LOG"
 

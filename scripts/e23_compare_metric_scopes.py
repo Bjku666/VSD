@@ -59,8 +59,8 @@ def _row_for(metrics_path: Path, metrics: dict[str, Any]) -> list[dict[str, Any]
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument("--results-val", default="/mnt/disk2/lhr/VSD/results/val")
-    parser.add_argument("--out-dir", default="/mnt/disk2/lhr/VSD/results/val/e23_metric_scope_comparison")
+    parser.add_argument("--results-val", default="/mnt/disk2/lhr/VSD/results/S6_object_background_suppression")
+    parser.add_argument("--out-dir", default="/mnt/disk2/lhr/VSD/results/S6_object_background_suppression/e23_metric_scope_comparison")
     return parser.parse_args()
 
 
