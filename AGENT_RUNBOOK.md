@@ -35,41 +35,25 @@
 | S5 | 诊断优化阶段 | E20_0、E18_1/E18_2、E12_1b、E13_loss_check、E22_0 | done | 找到主要 FP 类型，确认 E13_3b 是当前最佳低误报候选但 AP_dark-small 三 seed 稳定性仍不足 |
 | S6 | 诊断驱动的目标保持型背景抑制阶段 | E23、E18_check、E22_1、E13_3b-light、E22_2a/b、E14、E24_0 | awaiting_review | object-level 口径已落地；target-scoped light loss、train-split HN 和 CEBS 均未形成新候选 |
 | S6.5 | 诊断驱动的分类混淆修正与候选可靠性校准阶段 | corrected seedfix audit；E25_0 aggregate；E25_1_full、E26_1_full、E27_1_full；E26_2a/b failed audit samples | audit_only_completed_no_candidate | S6.5 audit-only 收口完成，暂无有效新候选；E6 仍是当前主线基线；E13_3b 只有单 seed / 低误报信号，但 corrected multi-seed 与 object-level gate 下尚未形成稳定候选 |
-| S7 | 论文完整验证阶段 | E15、E16、E18 full、E19、E20 full、E21、E24 full | not started | 暂不进入 test / 强模型 |
+| S7-A | val-only 架构候选孵化阶段 | S7_0、S7_1、S7_3、S7_4、S7_2、S7_5、S7_6、S7_7 | not_started | 不进入 test / 强模型；先验证 UTAH-lite、Evidential reliability fusion、offset alignment，再看 ranking loss 与 Frequency/Retinex shallow branch |
+| S7-B | 论文完整验证阶段 | E24_full、E15/E16/E19、E18_full、E20_full、E21 | blocked_no_valid_candidate | 只有 S7-A 至少产生一个通过 gate 的候选后才允许启动 |
 
-当前定位：S6.5 audit-only 收口完成，当前不要进入 S7、不要跑 test set、不要冻结候选。旧 E18/E25_0 多 seed 结果已判定 invalid，旧输出目录和日志已按用户要求删除。只允许使用 2026-05-27 corrected seedfix 后的新训练、验证、prediction export 和 object-level 产物。
+当前定位：S7 不再直接表示论文最终验证，而是先进入 `S7-A：val-only 架构候选孵化阶段`。从 E6 corrected baseline 出发，优先验证 `S7_1 UTAH-lite quality-aligned head` 和 `S7_3 Evidential reliability fusion lite`，不再继续普通 YOLO 模块堆叠。`S7-B` 在 S7-A 产出有效候选前保持 blocked。
 
-当前设计符合度：方向符合 S6.5，但原状态表把缓存版 E25_1/E26_1/E27_1 和第二批 E26_2a 写得过于靠前。按新 gate 修正后，缓存结果只能证明“校准/可靠性有信号”，不能写成完整实验结论；正式结论只能以完整重推理、统一验证和 object-level 复核为准。
+当前设计符合度：S6.5 已确认暂无有效新候选，E6 仍是当前主线基线。E12/E14/E25/E26/E27 说明只调阈值、普通 gate 或背景抑制会伤 object-level dark-small；因此 S7 首批转向“置信度-定位质量错位”和“模态可靠性波动”的可验证模块化落地。
 
 ## 当前阶段执行清单
 
 | 当前任务 | 编号 | 是否立即执行 | 说明 |
 | --- | --- | --- | --- |
-| corrected multi-seed 重跑 | seedfix/E18/E25_0 | completed_audit_only | 已修复 dataloader seed 逻辑；E6 seed0/1/2、E13_3b seed0/1/2、E25_0 seed42/43/44 均完成训练、验证、object-level、prediction export。旧多 seed 产物/日志已删除，不得再用于均值/方差/候选判断 |
-| E25_0 corrected aggregate | E25_0 | done_not_candidate | mean AP_dark-small_object=0.097365，FP/image=1.724302，FPPI_dark=3.063447；旧 seed 产物继续 invalid，corrected aggregate 也未通过 gate |
-| E6 完整重推理 calibration / threshold / NMS sweep | E25_1_full | done_not_candidate | 完整重推理完成；selected=illumination_wise dark0.35_other0.40 / NMS 0.50，FP/image=1.279101、FPPI_dark=2.196023，但 AP_dark-small_object=0.078896，未通过 gate |
-| class-wise threshold 完整复核 | E26_1_full | done_not_candidate | 完整复核完成；FP/image=1.147720、FPPI_dark=1.781250、class_confusion FP=661，但 AP_dark-small_object=0.066720，未通过 gate |
-| E6 calibration 缓存版 | E25_1 | 已完成，preliminary | 基于 E20 train/val 缓存预测完成；NMS 仅记录缓存 IoU=0.70，object AP 图是 cached dark-small object AP50 proxy，不是完整 AP50-95；只能作为 full 版筛选依据 |
-| class-wise threshold 缓存版 | E26_1 | 已完成，preliminary | 阈值 car=0.40、truck=0.50、bus=0.50、van=0.45、freight_car=0.45；val FP/image=1.147720、FPPI_dark=1.781250、class_confusion FP=661，只作为 full 版复核依据，不作为正式实验结论 |
-| class_confusion classification-only loss 1.25x | E26_2a | failed_train_split_source_unverified | class_confusion 来源 CSV 的 split 字段为空，未通过 train-only source 校验；即使训练、统一验证、object-level、prediction export 已完成，也只能作为失败审计样本保留 |
-| class_confusion classification-only loss 1.50x | E26_2b | failed_train_split_source_unverified | class_confusion 来源 CSV 的 split 字段为空，未通过 train-only source 校验；即使训练、统一验证、object-level、prediction export 已完成，也只能作为失败审计样本保留 |
-| metadata verifier 完整复核 | E27_1_full | done_not_candidate | full re-inference verifier completed; holdout AUC=0.967809, best score_final threshold=0.16, FP/image=1.230088, FPPI_dark=1.923295，但 object-level AP 未保住 |
-| metadata verifier 缓存版 | E27_1 | 已完成，preliminary | train TP vs background_far 负样本，排除 class_confusion/localization_error 负训练；best score_final 阈值 0.03，FP/image=1.144997、FPPI_dark=1.781250 |
-| object-level evaluator | E23 | 已完成 | 输出 dark-small/tiny/low-contrast object-level AP/Recall，并对比 image-level |
-| E13_3b seed 独立性核查 | E18_check | 已完成 | 旧 seed 审计已判 invalid；当前以 corrected seedfix 的新训练、验证、prediction export 和 object-level 产物为准 |
-| hard negative list 构建与去重 | E22_1 | 已完成 | 拆分 background_far、class_confusion、localization_error、near_object_background、duplicate_or_conf_threshold；仅 background_far train-allowed |
-| E13_3b-light | E13_3b-light | 已完成，不作为候选 | FP/image 与 FPPI_dark 升高，object-level AP_dark-small 低于 E6 |
-| background_far hard negative 1.5x | E22_2a | 已完成，不作为候选 | 使用 train-split background_far HN；image-level AP_dark-small 提升但 FP/FPPI_dark 升高，object-level AP_dark-small 低于 E6 |
-| background_far hard negative 2x | E22_2b | 已完成，不作为候选 | 使用 train-split background_far HN；image-level AP_dark-small 提升但 FP/FPPI_dark 升高，object-level AP_dark-small 低于 E6 |
-| CEBS alpha=0.05/0.10 | E14_1/E14_2 | 已完成，不作为候选 | E14_1 image-level 有提升但 object-level AP_dark-small 低于 E6；E14_2 降 FP 但 image/object dark-small AP 均低于 E6 |
-| CEBS 组合候选 | E14_3/E14_4 | E14_3 已完成，不作为候选；E14_4 跳过 | E14_3 未超过 B 候选，且 HN 路线未提供组合依据 |
-| candidate freeze | E24_0 | blocked_no_valid_candidate | 当前没有满足 image-level、object-level、FP/FPPI 与 seed 有效性要求的候选；E24 candidate freeze 继续 blocked_no_valid_candidate |
-| scale+center loss 后续扩展 | E13_4b/E13_4c | 暂停 | E13_4b/E13_4c 误报明显升高，不作为当前最佳方向 |
-| P2 普通扩展 | E11_2/E11_3 | 暂停 | E11_1 已低于 E6 |
-| 普通门控扩展 | E12_1c/E12_1d/E12_2/E12_3/E12_4 | 暂停 | gate 路线降 FP 但伤 AP_dark-small，S6 不继续 |
-| E6 768 重采样扩展 | E10_3/E10_4 | 暂停 | E10_2 没超过 E6 640 |
-| 强模型/test | E15/E21 | 禁止 | 不运行 test set，不启动 RT-DETR / YOLOv10 / YOLO11s |
-| hard negative 3x/5x | E22_2 3x/5x variants | 禁止 | class_confusion 占比高，盲目强采样可能压掉真实车辆目标 |
+| S6.5 freeze & audit refresh | S7_0 | yes | 冻结 E6 corrected baseline、E25/E26/E27 not_candidate 和 E26_2 failed audit 结论，确保 state / runbook / report 一致 |
+| UTAH-lite quality-aligned head | S7_1 | after_S7_0 | 在 E6 head 后加轻量 IoU-quality 分支，推理分数改为 `cls^alpha * quality^beta`；当前第一优先实验 |
+| Evidential reliability fusion lite | S7_3 | after_S7_1_review | 在 E6 多尺度融合处加入 RGB/IR evidence、uncertainty 和 conflict 建模，用网络内部可靠性替代离线 verifier |
+| Offset alignment lite | S7_4 | after_S7_3_or_if_localization_error_high | 在 P3/P4/P5 融合前加入 zero-init offset / deformable alignment，优先解决弱错位与 localization_error |
+| RS/aLRP-lite ranking loss | S7_2 | after_S7_1_stable | 仅对 dark-small / tiny / low-contrast top-k 预测加小权重 ranking loss，训练风险更高，放在 UTAH-lite 稳住后 |
+| Frequency/Retinex shallow branch | S7_5 | later_branch | RGB 反射残差 + IR 高频边缘残差，先做浅层辅助，不替换主干 |
+| 组合候选 | S7_6 | blocked_until_single_modules_pass | 优先 `S7_1 + S7_3`，其次 `S7_1 + S7_4`；禁止把所有模块一次性堆叠 |
+| corrected multi-seed validation | S7_7 | blocked_until_candidate | 对通过者做 seed0/1/2 full re-inference、统一验证、object-level 和 prediction export；通过后才允许进入 S7-B |
 
 ## 当前阶段暂停项
 
@@ -90,12 +74,13 @@
 - 不启动 RT-DETR / YOLOv10 / YOLO11s 强模型对照。
 - 不运行 test set。
 - 旧 E18/E25_0 多 seed 结果保持 invalid，不得用于结论。E26_2a/E26_2b 已完成但 failed_train_split_source_unverified，不再视为有效候选任务。
-- S6.5 有效候选 gate：AP_dark-small_object 不低于 E6 基线，或不低于 E6 的统计置信下界；FP/image、FPPI_dark、FPPI_low-contrast 均低于 E6；AP_tiny_object、AP_low-contrast_object 不发生实质下降。
+- S7-A 有效候选 gate：AP_dark-small_object 不低于 E6 基线，或不低于 E6 corrected multi-seed 的统计置信下界；FP/image、FPPI_dark、FPPI_low-contrast 均低于 E6；AP_tiny_object、AP_low-contrast_object 不发生实质下降；image-level AP 不能靠牺牲 object-level AP 换来。
 - E22_1 只生成 hard negative list，不直接训练。
 - E22_2a/E22_2b 只使用 background_far hard negative 轻量采样，不使用 class_confusion/all 3x/5x；训练源必须来自 train split，不允许直接用 val FP 泄漏到训练。
 - 后续所有 hard negative / class confusion 训练任务，必须在训练启动前检查来源 split == train 且非空；不满足则直接 blocked。
 - E25_1/E26_1/E27_1 当前使用缓存预测 `conf>=0.25, NMS IoU=0.70`，因此低于 0.25 的阈值和真实多 NMS IoU 重新推理仍未完成；不能把缓存限制下的结果写成完整结论。
 - E25_1/E26_1/E27_1 缓存版只能写 preliminary，只能说明“校准/可靠性有信号”；真正候选判断必须以 E25_1_full、E26_1_full、E27_1_full 这类完整重推理结果为准。
+- cached prediction 只能写 preliminary；S7-A 正式候选必须 full re-inference + unified validation + object-level 复核。
 - 运行 E13 相关脚本时若出现 `CXXABI_1.3.15` / `cv2` 导入错误，先设置 `LD_LIBRARY_PATH=/mnt/disk2/lhr/conda_envs/vsd/lib`。
 - 当前 S6 关键日志入口：E22_2a object-level 日志为 `results/val/logs/e22_2a_hn15_object_eval_gpu0_20260526_0012.log`；E22_2b object-level 日志为 `results/val/logs/e22_2b_hn2_object_eval_gpu1_20260526.log`；E14_3 object-level 日志为 `results/val/logs/e14_3_cebs_a005_object_eval_gpu0_20260526.log`。
 - E23 object-level evaluator 已支持 `--validator e6` 和 `--validator e14`；E14 object-level 评估需传入 CEBS 参数。

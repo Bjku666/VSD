@@ -21,18 +21,17 @@
 
 ## 当前实验路线
 
-完整实验路线以 `shiyan.md` 为准。当前实验路线为：
+当前执行以 `EXPERIMENT_STATE.md`、`AGENT_RUNBOOK.md` 和 `S7_experiment_plan_luopan.md` 为准；`shiyan.md` 主要保留历史规划。当前实验路线为：
 
-1. E0 固定数据协议，补充 `low-contrast` 和 `tiny` 子集。
-2. E1/E2 重新训练 RGB-only 和 IR-only 基线。
-3. E3/E4 重新评估 NMS/WBF 后融合。
-4. E7 做 WBF 权重搜索和高分辨率强基线。
-5. E9 建立 6 通道 early fusion 基线。
-6. E10 做 E5/E6 高分辨率与重采样扩展。
-7. E8、E11、E13 做小目标增强。
-8. E14、E17 做暗弱和低对比度增强/评测。
-9. E12、E16 做跨模态门控和配准扰动鲁棒性。
-10. E15、E18、E19、E20、E21 完成强模型、多 seed、效率、失败案例和最终 test set 评测。
+1. S6.5 先按 audit-only 收口，冻结 E6 corrected baseline，以及 E25/E26/E27 的 not_candidate / failed audit 结论。
+2. S7 不直接进入论文最终验证，先拆成 `S7-A` 和 `S7-B` 两段。
+3. `S7-A` 只做 val-only 架构候选孵化，从 E6 出发做单项可解释 ablation。
+4. 第一优先实验是 `S7_1: E6 + UTAH-lite quality-aligned head`。
+5. 第二优先实验是 `S7_3: Evidential reliability fusion lite`，把可靠性信号从后处理移回融合层。
+6. 若定位误差仍高，再做 `S7_4: offset alignment lite`；`S7_2 ranking loss` 放在其后做小权重验证。
+7. `S7_5 Frequency/Retinex shallow branch` 作为低对比增强支线，不抢主线。
+8. 只有单项通过 gate 后，才允许进入 `S7_6` 组合候选与 `S7_7` corrected multi-seed full re-inference。
+9. `S7-B` 的 `E24_full`、`E15/E16/E19`、`E18_full`、`E20_full` 和 `E21` 只有在 S7-A 产生有效候选后才允许启动。
 
 ## 目录规范
 

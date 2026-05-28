@@ -2,6 +2,8 @@
 
 本文档记录 VSD 项目的实验协议、结果存放规范和后续实验路线。旧训练结果、旧验证结果和旧历史权重已经清空，后续从数据协议审计和 E1/E2 基线开始重新训练。当前总体判断：实验设计合理，已覆盖 RGB/IR 单模态、后融合、特征级融合、高分辨率、小目标增强、暗弱增强和强模型对照等主要方向；但要达到论文级闭环，还必须补充低对比度协议、多 seed 稳定性、效率分析、per-class/tiny-size 分析、配准扰动鲁棒性和最终 test set 锁定评测。
 
+注意：`shiyan.md` 主要保留历史规划与编号背景。当前实际执行口径以 `EXPERIMENT_STATE.md`、`AGENT_RUNBOOK.md` 和 `S7_experiment_plan_luopan.md` 为准。就 2026-05-28 的最新阶段定义而言，S6.5 已 audit-only 收口且暂无有效候选；当前下一步不是直接进入 `E15/E16/E19/E21` 这类论文完整验证，而是先执行 `S7-A val-only 架构候选孵化`，并以 `S7_1: E6 + UTAH-lite quality-aligned head` 作为第一个真正实验。
+
 ## 1. 项目目录与存放规范
 
 - 原始数据：`data/`
@@ -137,7 +139,8 @@ Agent 执行约束：
 | S4 | 小目标头/门控/loss 初筛 | E11_1、E12_1、E13_2、E13_3 | done / partial | 都能降 FP，但 AP_dark-small 低于 E6 |
 | S5 | 当前阶段：诊断优化阶段 | E20_0、E18_1/E18_2、E12_1b、E13_loss_check、E22_0 | next | 分析 E6 与 E12/E13 差异，寻找保 AP 降 FP 的改法 |
 | S6 | 方法二次优化阶段 | E12_1b 正式版、E13_2b/E13_3b、E22_2、E14 | not started | 形成最终方法候选 |
-| S7 | 论文完整验证阶段 | E15、E16、E18 full、E19、E20 full、E21、E24 | not started | 多 seed、效率、强模型、test set、复现冻结 |
+| S7-A | val-only 架构候选孵化阶段 | S7_0、S7_1、S7_3、S7_4、S7_2、S7_5、S7_6、S7_7 | not_started | 先做 UTAH-lite、Evidential reliability fusion、offset alignment 等单项 ablation；通过 gate 后再进入组合与 multi-seed |
+| S7-B | 论文完整验证阶段 | E24_full、E15/E16/E19、E18_full、E20_full、E21 | blocked_no_valid_candidate | 只有 S7-A 至少产生一个有效候选后才允许启动 |
 
 历史推荐优先级（当前执行以 S5 当前阶段表为准）：
 
@@ -150,7 +153,7 @@ Agent 执行约束：
 7. `E7-3`：补 RGB-only 768 单模态对照。
 8. `E8-1`：close_mosaic 对照；E8-3/E8-4 暂不优先。
 9. `E11-E14`：小目标、暗弱、低对比增强。
-10. `E15-E21`：论文级完整验证。
+10. `S7-A / S7-B`：先做 val-only 架构候选孵化，再进入论文级完整验证。
 
 
 ## 5.1 当前阶段重排（2026-05-21）
@@ -421,7 +424,7 @@ test set 锁定记录表必须单独保留，字段至少包括：模型名、va
 | E12 | E6 或 E10-best |
 | E14 | E0 low-contrast 子集 |
 | E16 | E10 / E12 融合模型 |
-| E21 | E15 / E18 / E19 / E20 完成后 |
+| E21 | S7-A 产生有效候选且 E24_full / E18_full / E19 / E20_full 完成后 |
 
 ### 7.2 模型淘汰规则
 
@@ -461,7 +464,7 @@ test set 锁定记录表必须单独保留，字段至少包括：模型名、va
 | 高分辨率 | E7 | 6 | 可单 seed 初筛 | 高 |
 | 小目标 | E8 / E11 / E13 | 多项 | 关键模型 3 seed | 高 |
 | 创新模块 | E12 / E14 | 多项 | 最终候选 3 seed | 高 |
-| 完整验证 | E15-E21 | 多项 | 必须 | 论文阶段 |
+| 完整验证 | S7-B | 多项 | 必须 | 论文阶段，前提是 S7-A 已产生有效候选 |
 
 原则：先单 seed 初筛，进入最终候选后再补 `seed=1,2`。
 
