@@ -46,13 +46,13 @@ runs/**/*
 !runs/**/.gitkeep
 
 # Results / experiment artifacts
-results/**/*
-!results/
-!results/.gitkeep
+/results/**
+!/results/
+!/results/.gitkeep
 
 # Keep only the cross-stage leaderboard in results.
-!results/dark_small_experiment_leaderboard.csv
-!results/dark_small_experiment_leaderboard.md
+!/results/dark_small_experiment_leaderboard.csv
+!/results/dark_small_experiment_leaderboard.md
 
 # Weights / checkpoints
 *.pt
