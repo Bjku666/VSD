@@ -26,6 +26,7 @@ if scripts_dir and scripts_dir not in sys.path:
 import e25_e26_offline_calibration as cal
 from e13_tiny_aware_loss_core import E13DetectionTrainer
 from e6_feature_fusion_multiscale_core import E6DetectionTrainer
+from s7_utah_quality_head_core import UtahLiteDetectionTrainer
 
 
 ROOT = Path("/mnt/disk2/lhr/VSD")
@@ -73,6 +74,8 @@ def _eval_yaml_for_split(base_yaml: Path, split: str, out_dir: Path, name: str) 
 
 
 def _trainer_class(validator: str):
+    if validator == "s7_1":
+        return UtahLiteDetectionTrainer
     if validator == "e13":
         return E13DetectionTrainer
     if validator == "e6":
@@ -128,6 +131,8 @@ def export_predictions(
     trainer = _trainer_class(validator)(overrides=overrides)
     trainer.set_fusion_mode("rgb_ir")
     trainer.set_ir_data(str(eval_data_ir))
+    if validator == "s7_1" and hasattr(trainer, "set_utah_config"):
+        trainer.set_utah_config(alpha=0.6, beta=0.4, quality_loss_weight=0.2)
     if validator == "e13" and hasattr(trainer, "set_loss_config"):
         trainer.set_loss_config(loss_mode="center-aware", loss_scope="small", aux_weight=0.5)
     trainer.setup_model()
@@ -498,7 +503,7 @@ def parse_args() -> argparse.Namespace:
     p2.set_defaults(func=run_e26_1_full)
     p3 = sub.add_parser("export")
     p3.add_argument("--weights", required=True)
-    p3.add_argument("--validator", default="e6", choices=["e6", "e13"])
+    p3.add_argument("--validator", default="e6", choices=["e6", "e13", "s7_1"])
     p3.add_argument("--split", default="val", choices=["train", "val"])
     p3.add_argument("--out-dir", required=True)
     p3.add_argument("--imgsz", type=int, default=640)

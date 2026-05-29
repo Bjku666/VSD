@@ -25,6 +25,11 @@ BATCH_LATE="${BATCH_LATE:-16}"
 WORKERS="${WORKERS:-32}"
 LOG_DIR="${ROOT}/results/S6_5_reliability_calibration/logs"
 WORK_DIR="${WORK_DIR:-${ROOT}/results/S6_5_reliability_calibration/work}"
+S7_DIR="${ROOT}/results/S7_architecture_incubation"
+S7_LOG_DIR="${S7_DIR}/logs"
+S7_DEVICE="${S7_DEVICE:-0,1}"
+S7_BATCH="${S7_BATCH:-96}"
+S7_WORKERS="${S7_WORKERS:-16}"
 MODEL_N="${MODEL_N:-${ROOT}/weights/pretrained/yolo11n.pt}"
 MODEL_S="${MODEL_S:-${ROOT}/weights/pretrained/yolo11s.pt}"
 RGB_DATA="${ROOT}/configs/dronevehicle_resplit/dronevehicle_resplit_rgb.yaml"
@@ -42,11 +47,13 @@ BATCH_OBJECT="${BATCH_OBJECT:-16}"
 WORKERS_OBJECT="${WORKERS_OBJECT:-8}"
 
 mkdir -p "${LOG_DIR}"
+mkdir -p "${S7_LOG_DIR}"
 cd "${ROOT}"
 
 export VSD_E5_SCRIPTS_DIR="${ROOT}/scripts"
 export VSD_E6_SCRIPTS_DIR="${ROOT}/scripts"
 export PYTHONPATH="${ROOT}/scripts:${PYTHONPATH:-}"
+export LD_LIBRARY_PATH="/mnt/disk2/lhr/conda_envs/vsd/lib:${LD_LIBRARY_PATH:-}"
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
 
 print_cmd() {
@@ -70,6 +77,28 @@ run_logged() {
   local exp_id="$1"
   shift
   local log_file="${LOG_DIR}/${exp_id}_$(date +%Y%m%d_%H%M%S).log"
+  if [[ "${RUN_MODE}" == "run" ]]; then
+    {
+      echo "===== $(date '+%F %T') start ${exp_id} ====="
+      echo "cwd=${ROOT}"
+      echo "log_file=${log_file}"
+      printf 'command='
+      format_cmd "$@"
+      printf '\n\n'
+    } > "${log_file}"
+    setsid env PYTHONUNBUFFERED=1 "$@" >> "${log_file}" 2>&1 < /dev/null &
+    echo "${exp_id} PID=$!"
+    echo "${exp_id} log=${log_file}"
+  else
+    echo "# log would be: ${log_file}"
+    print_cmd "$@"
+  fi
+}
+
+run_logged_s7() {
+  local exp_id="$1"
+  shift
+  local log_file="${S7_LOG_DIR}/${exp_id}_$(date +%Y%m%d_%H%M%S).log"
   if [[ "${RUN_MODE}" == "run" ]]; then
     {
       echo "===== $(date '+%F %T') start ${exp_id} ====="
@@ -158,6 +187,13 @@ s6_current() {
   done
 }
 
+s7_current() {
+  for id in S7_0 S7_1a; do
+    echo
+    run_id "${id}"
+  done
+}
+
 stage_tag_for_id() {
   case "$1" in
     E0_*) echo "S0" ;;
@@ -167,6 +203,7 @@ stage_tag_for_id() {
     E11_*|E12_*|E13_1|E13_2|E13_3|E13_4|E13_5|E13_6) echo "S4" ;;
     E15_*|E16_*|E17_*|E18|E19|E20|E21) echo "S5" ;;
     E13_3b_light|E14_*|E18_check|E22_*|E23|E23_*|E24_*) echo "S6" ;;
+    S7_*|S7*) echo "S7-A" ;;
     *) echo "S?" ;;
   esac
 }
@@ -307,6 +344,49 @@ e24_1() { planned_only E24_1 "freeze final configs" "${PY}" "${ROOT}/scripts/e24
 e24_2() { planned_only E24_2 "audit config paths, commit, seed, weights, results" "${PY}" "${ROOT}/scripts/e24_freeze_repro_config.py" --step audit --results-val "${ROOT}/results" --dry-run; }
 e24_3() { planned_only E24_3 "verify leaderboard vs result dirs" "${PY}" "${ROOT}/scripts/e24_freeze_repro_config.py" --step verify-leaderboard --leaderboard "${ROOT}/results/dark_small_experiment_leaderboard.csv" --dry-run; }
 
+s7_0() { echo "# S7_0: freeze S6.5 audit evidence and keep S7-B blocked"; run_logged_s7 S7_0 "${PY}" "${ROOT}/scripts/s7_0_freeze_audit_refresh.py"; }
+s7_1a() {
+  echo "# S7_1a: E6 + UTAH-lite quality-aligned head, alpha=0.6 beta=0.4"
+  run_logged_s7 S7_1a "${PY}" "${ROOT}/scripts/s7_1_train_utah_lite.py" \
+    --mode rgb_ir \
+    --model "${ROOT}/results/S2_fusion_mainline/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt" \
+    --epochs 100 --imgsz 640 --batch "${S7_BATCH}" --workers "${S7_WORKERS}" --device "${S7_DEVICE}" \
+    --project "${S7_DIR}" --name s7_1a_utah_lite_a06_b04 --seed 0 --close-mosaic 10 --patience 100 \
+    --quality-alpha 0.6 --quality-beta 0.4 --quality-loss-weight 0.2 --exist-ok
+}
+s7_1a_val() {
+  echo "# S7_1a_val: unified image-level validation after S7_1a training completes"
+  run_logged_s7 S7_1a_val "${PY}" "${ROOT}/scripts/s7_1_val_utah_lite.py" \
+    --weights "${S7_DIR}/s7_1a_utah_lite_a06_b04/weights/best.pt" --mode rgb_ir --split val \
+    --imgsz 640 --batch "${BATCH_OBJECT}" --workers "${WORKERS_OBJECT}" --device "${DEVICE_SINGLE}" \
+    --out-dir "${S7_DIR}/s7_1a_utah_lite_a06_b04_val" --quality-alpha 0.6 --quality-beta 0.4 --quality-loss-weight 0.2 --exist-ok
+}
+s7_1a_object() {
+  echo "# S7_1a_object: object-level validation after S7_1a_val"
+  run_logged_s7 S7_1a_object "${PY}" "${ROOT}/scripts/e23_object_level_subset_eval.py" \
+    --weights "${S7_DIR}/s7_1a_utah_lite_a06_b04/weights/best.pt" --validator s7_1 --mode rgb_ir --split val \
+    --image-metrics "${S7_DIR}/s7_1a_utah_lite_a06_b04_val/required_metrics.json" \
+    --imgsz 640 --batch "${BATCH_OBJECT}" --workers "${WORKERS_OBJECT}" --device "${DEVICE_SINGLE}" \
+    --out-dir "${S7_DIR}/s7_1a_utah_lite_a06_b04_object_level" \
+    --quality-alpha 0.6 --quality-beta 0.4 --quality-loss-weight 0.2
+}
+s7_1a_export() {
+  echo "# S7_1a_export: full val prediction export after S7_1a training completes"
+  run_logged_s7 S7_1a_export "${PY}" "${ROOT}/scripts/e25_e26_full_calibration.py" export \
+    --weights "${S7_DIR}/s7_1a_utah_lite_a06_b04/weights/best.pt" --validator s7_1 --split val \
+    --out-dir "${S7_DIR}/s7_1a_utah_lite_a06_b04_predictions" --imgsz 640 --batch "${BATCH_OBJECT}" \
+    --workers "${WORKERS_OBJECT}" --device "${DEVICE_SINGLE}" --conf 0.01 --nms-iou 0.70
+}
+s7_1a_gate() {
+  echo "# S7_1a_gate: compare image/object metrics against E6 gate"
+  run_logged_s7 S7_1a_gate "${PY}" "${ROOT}/scripts/s7_1_gate_review.py" \
+    --exp-id S7_1a \
+    --image-metrics "${S7_DIR}/s7_1a_utah_lite_a06_b04_val/required_metrics.json" \
+    --object-metrics "${S7_DIR}/s7_1a_utah_lite_a06_b04_object_level/required_metrics.json" \
+    --pred-dir "${S7_DIR}/s7_1a_utah_lite_a06_b04_predictions/labels" \
+    --out-dir "${S7_DIR}/s7_1a_utah_lite_a06_b04_gate_review"
+}
+
 list_ids() {
   cat <<'EOF'
 E0_1 E0_2 E0_3 E0_4 E0_5 E0_6 E0_7
@@ -326,6 +406,7 @@ E18_check E18 E19 E20 E21
 E22_1 E22_2a E22_2b E22_2 E22_3 E22_4 E22_5
 E23 E23_1 E23_2 E23_3
 E24_0 E24_1 E24_2 E24_3
+S7_0 S7_1a S7_1a_val S7_1a_object S7_1a_export S7_1a_gate
 EOF
 }
 
@@ -336,6 +417,7 @@ Usage: scripts/train/run_dark_small_experiment_demos.sh {list|all|EXPERIMENT_ID.
 Default: dry-run. Set RUN_MODE=run for implemented experiments.
 Current route: do not run E21/test-set or strong-model E15 during tuning.
 Use S6 to print the current-stage demo sequence.
+Use S7 or S7-A to print the current S7-A sequence.
 Each experiment header prints its current stage tag as "Sx / Ex".
 EOF
 }
@@ -349,7 +431,7 @@ run_id() {
   stage_tag="$(stage_tag_for_id "${lookup_id}")"
   local id_lc
   id_lc="$(echo "$1" | tr '[:upper:]-' '[:lower:]_')"
-  if [[ "${id_lc}" != "s6" ]]; then
+  if [[ "${id_lc}" != "s6" && "${id_lc}" != "s7" && "${id_lc}" != "s7_a" ]]; then
     echo "# ${stage_tag} / ${display_id}"
   fi
   case "${id_lc}" in
@@ -370,7 +452,9 @@ run_id() {
     e22_1) e22_1 ;; e22_2a) e22_2a ;; e22_2b) e22_2b ;; e22_2) e22_2 ;; e22_3) e22_3 ;; e22_4) e22_4 ;; e22_5) e22_5 ;;
     e23) e23 ;; e23_1) e23_1 ;; e23_2) e23_2 ;; e23_3) e23_3 ;;
     e24_0) e24_0 ;; e24_1) e24_1 ;; e24_2) e24_2 ;; e24_3) e24_3 ;;
+    s7_0) s7_0 ;; s7_1a) s7_1a ;; s7_1a_val) s7_1a_val ;; s7_1a_object) s7_1a_object ;; s7_1a_export) s7_1a_export ;; s7_1a_gate) s7_1a_gate ;;
     s6) s6_current ;;
+    s7|s7_a) s7_current ;;
     *) echo "Unknown experiment ID: $1" >&2; usage >&2; exit 2 ;;
   esac
 }

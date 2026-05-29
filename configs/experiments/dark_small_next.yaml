@@ -49,6 +49,25 @@ baseline_results:
   title: E6 multi-scale fusion
   metrics: /mnt/disk2/lhr/VSD/results/val/e6_feature_fusion_multiscale_val/required_metrics.json
 experiments:
+- id: S7_1a
+  stage: S7-A
+  kind: s7_1
+  title: UTAH-lite quality-aligned head alpha0.6 beta0.4
+  mode: rgb_ir
+  imgsz: 640
+  batch: 96
+  workers: 16
+  device: 0,1
+  model: /mnt/disk2/lhr/VSD/results/S2_fusion_mainline/yolo11n_e6_rgb_ir_640_ddp/weights/best.pt
+  project: /mnt/disk2/lhr/VSD/results/S7_architecture_incubation
+  name: s7_1a_utah_lite_a06_b04
+  result_dir: /mnt/disk2/lhr/VSD/results/S7_architecture_incubation/s7_1a_utah_lite_a06_b04_val
+  metrics: /mnt/disk2/lhr/VSD/results/S7_architecture_incubation/s7_1a_utah_lite_a06_b04_val/required_metrics.json
+  object_metrics: /mnt/disk2/lhr/VSD/results/S7_architecture_incubation/s7_1a_utah_lite_a06_b04_object_level/required_metrics.json
+  status: done_not_candidate
+  quality_alpha: 0.6
+  quality_beta: 0.4
+  quality_loss_weight: 0.2
 - id: E7_1
   stage: E7
   kind: single

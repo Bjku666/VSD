@@ -333,6 +333,9 @@ def _fusion_model_steps(manifest: dict[str, Any], exp: dict[str, Any], work_dir:
     elif kind == "e14":
         train_script = "e14_train_cebs.py"
         val_script = "e14_val_cebs.py"
+    elif kind == "s7_1":
+        train_script = "s7_1_train_utah_lite.py"
+        val_script = "s7_1_val_utah_lite.py"
     else:
         train_script = "e6_train_feature_fusion_multiscale.py"
         val_script = "e6_val_feature_fusion_multiscale.py"
@@ -408,6 +411,14 @@ def _fusion_model_steps(manifest: dict[str, Any], exp: dict[str, Any], work_dir:
         ):
             if exp_key in exp:
                 train.extend([cli_key, str(exp[exp_key])])
+    if kind == "s7_1":
+        for exp_key, cli_key in (
+            ("quality_alpha", "--quality-alpha"),
+            ("quality_beta", "--quality-beta"),
+            ("quality_loss_weight", "--quality-loss-weight"),
+        ):
+            if exp_key in exp:
+                train.extend([cli_key, str(exp[exp_key])])
     val = [
         defaults["python"],
         str(Path(defaults["root"]) / "scripts" / val_script),
@@ -438,6 +449,14 @@ def _fusion_model_steps(manifest: dict[str, Any], exp: dict[str, Any], work_dir:
         ):
             if exp_key in exp:
                 val.extend([cli_key, str(exp[exp_key])])
+    if kind == "s7_1":
+        for exp_key, cli_key in (
+            ("quality_alpha", "--quality-alpha"),
+            ("quality_beta", "--quality-beta"),
+            ("quality_loss_weight", "--quality-loss-weight"),
+        ):
+            if exp_key in exp:
+                val.extend([cli_key, str(exp[exp_key])])
     return [CommandStep("train", train), CommandStep("validate", val)]
 
 
@@ -447,7 +466,7 @@ def _steps_for(manifest: dict[str, Any], exp: dict[str, Any], work_dir: Path) ->
         return _single_steps(manifest, exp, work_dir)
     if kind == "late_fusion":
         return _late_fusion_steps(manifest, exp)
-    if kind in {"e5", "e6", "e11", "e12", "e13", "e14"}:
+    if kind in {"e5", "e6", "e11", "e12", "e13", "e14", "s7_1"}:
         return _fusion_model_steps(manifest, exp, work_dir)
     if kind == "planned":
         return []

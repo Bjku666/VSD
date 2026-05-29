@@ -29,6 +29,7 @@ if scripts_dir and scripts_dir not in sys.path:
 import e6_val_feature_fusion_multiscale as e6val
 from e13_val_tiny_aware_loss import _evaluate_once as e13_evaluate_once
 from e14_val_cebs import _ConfiguredE14CEBSTrainer
+from s7_1_val_utah_lite import _ConfiguredUtahLiteTrainer
 
 
 e6_evaluate_once = e6val._evaluate_once
@@ -330,6 +331,10 @@ def evaluate_object_scopes(args: argparse.Namespace, subset_summary: dict[str, A
         _ConfiguredE14CEBSTrainer.cebs_args = args
         e6val.E6DetectionTrainer = _ConfiguredE14CEBSTrainer
         evaluator = e6val._evaluate_once
+    elif args.validator == "s7_1":
+        _ConfiguredUtahLiteTrainer.utah_args = args
+        e6val.E6DetectionTrainer = _ConfiguredUtahLiteTrainer
+        evaluator = e6val._evaluate_once
     else:
         evaluator = e6_evaluate_once
     out_dir = Path(args.out_dir)
@@ -475,7 +480,7 @@ def _fmt(value: Any) -> str:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("--weights", required=True)
-    parser.add_argument("--validator", default="e6", choices=["e6", "e13", "e14"])
+    parser.add_argument("--validator", default="e6", choices=["e6", "e13", "e14", "s7_1"])
     parser.add_argument("--mode", default="rgb_ir", choices=["rgb", "ir", "rgb_ir"])
     parser.add_argument("--split", default="val", choices=["val"])
     parser.add_argument("--data-rgb", default="/mnt/disk2/lhr/VSD/configs/dronevehicle_resplit/dronevehicle_resplit_rgb.yaml")
@@ -492,6 +497,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--low-contrast-threshold", type=float, default=0.08425217866897583)
     parser.add_argument("--contrast-kernel", type=int, default=7)
     parser.add_argument("--suppression-temperature", type=float, default=0.08)
+    parser.add_argument("--quality-alpha", type=float, default=0.6)
+    parser.add_argument("--quality-beta", type=float, default=0.4)
+    parser.add_argument("--quality-loss-weight", type=float, default=0.2)
     parser.add_argument("--build-only", action="store_true", help="Only build object-level subsets and configs.")
     return parser.parse_args()
 
